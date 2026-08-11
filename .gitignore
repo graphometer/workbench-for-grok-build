@@ -1,0 +1,44 @@
+# Graphometer Workbench — what this repo does NOT track.
+
+# ── per-machine configuration ────────────────────────────────────────────
+# Your paths (workspace root, excluded directories, port) are configuration,
+# not product code. Never tracked, never shipped.
+graphometer.env
+
+# ── server-owned runtime state ───────────────────────────────────────────
+# The archive list — which sessions this machine hides from the rail. The
+# `.tmp` is the atomic-write staging file.
+graphometer-archive.json
+graphometer-archive.json.tmp
+
+# ── secrets ──────────────────────────────────────────────────────────────
+# Nothing credential-shaped has ever lived in this folder; this keeps it so.
+# ~/.grok/auth.json is outside the tree and stays there.
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+auth.json
+credentials.json
+*token*.json
+*secret*
+.netrc
+
+# ── agent scratch space ──────────────────────────────────────────────────
+# studio/scratch/ is where the app points a session that chose no folder.
+# Its contents are the agent's test output, not source.
+studio/scratch/*
+!studio/scratch/.gitkeep
+
+# ── runtime junk ─────────────────────────────────────────────────────────
+node_modules/
+*.log
+*.pid
+.DS_Store
+Thumbs.db
+*.swp
+*~
+.idea/
+.vscode/

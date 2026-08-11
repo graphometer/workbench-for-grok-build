@@ -1,0 +1,30 @@
+  /* Deliberately unstyled. Legibility only. A development surface, served only
+     in STUDIO_DEV=1 builds (WP14, D46) — the application shell is the product. */
+  body { font: 14px/1.5 monospace; margin: 12px; }
+  textarea, input, select { font: 14px monospace; }
+  textarea { width: 100%; }
+  button { font: 14px monospace; padding: 3px 8px; }
+  .pane { border: 1px solid #999; padding: 8px; height: 280px; overflow: auto; white-space: pre-wrap; word-break: break-word; }
+  .short { height: 150px; }
+  .row { margin: 1px 0; }
+  .k { font-weight: bold; }
+  .err { color: #a00; }
+  .warn { color: #a60; font-weight: bold; }
+  .ok { color: #060; }
+  .thought { color: #555; }
+  .tool { color: #060; }
+  .replay { background: #f0f0f0; color: #666; font-style: italic; }
+  .perm { border: 3px solid #a60; padding: 8px; margin: 8px 0; }
+  .box { border: 1px solid #999; padding: 8px; margin: 8px 0; }
+  h2 { font-size: 14px; margin: 8px 0 2px; }
+  table { border-collapse: collapse; font-size: 13px; }
+  td, th { border: 1px solid #ccc; padding: 1px 5px; text-align: left; }
+  .channels { display: flex; gap: 8px; }
+  .channels > div { flex: 1; min-width: 0; }
+  .dim { color: #777; }
+/* Utility classes replacing the markup's former style= attributes, so the
+   Content-Security-Policy can forbid inline styles outright. */
+h1 { font-size: 17px; }
+.mb6 { margin-bottom: 6px; }
+.mt6 { margin-top: 6px; }
+.mt4 { margin-top: 4px; }

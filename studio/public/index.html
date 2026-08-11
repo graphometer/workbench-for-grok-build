@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Graphometer Workbench</title>
+<!-- WP14 (D46): the server substitutes the development-gate flag here at
+     serve time, the same way it substitutes the run token. app.js reads it
+     to decide whether development surfaces (the Shell drawer tab) exist. -->
+<meta id="studioDev" name="studio-dev" content="__STUDIO_DEV__">
+<link rel="stylesheet" href="/app.css?token=__STUDIO_TOKEN__">
+</head>
+<body>
+
+<!-- Masthead identity (D49, D66-D68). Fixed static markup only: no agent text
+     enters this surface. Status still belongs to the strip below. -->
+<header class="masthead">
+  <div class="mh-identity">
+    <svg class="mh-logo" viewBox="0 0 64 64" role="img"
+         aria-label="Graphometer mark: a letter G drawn as an open gauge">
+      <rect class="mh-logo-field" width="64" height="64" rx="14"></rect>
+      <path class="mh-logo-g" d="M 44.9 16.7 A 20 20 0 1 0 44.9 47.3"></path>
+      <line class="mh-logo-needle" x1="33" y1="32" x2="46" y2="32"></line>
+      <circle class="mh-logo-hub" cx="33" cy="32" r="3.2"></circle>
+    </svg>
+    <span class="mh-copy">
+      <span class="mh-titleline"><span class="mh-house">GRAPHOMETER · </span><span class="mh-product">WORKBENCH FOR GROK BUILD</span></span>
+      <span class="mh-affiliation">NOT AFFILIATED WITH XAI</span>
+    </span>
+  </div>
+  <a class="mh-site" href="https://graphometer.ai/" target="_blank" rel="noreferrer"
+     aria-label="Open graphometer.ai in a new tab">
+    <span class="mh-site-full">graphometer.ai ↗</span>
+    <span class="mh-site-short">SITE ↗</span>
+  </a>
+</header>
+
+<div class="app" id="app" data-rail="expanded" data-drawer="closed">
+
+  <!-- ── LEFT RAIL ─────────────────────────────────────────────────── -->
+  <!--
+    Sessions grouped by cwd. There is NO Projects tree: no project entity
+    exists anywhere in the protocol, and the only thing a session carries
+    that resembles one is its working directory. D7 / reconciliation §D.
+  -->
+  <aside class="rail" aria-label="Sessions">
+    <div class="rail-head">
+      <span class="rail-title t-caption trunc">SESSIONS · BY FOLDER</span>
+      <button class="btn btn-sm" data-variant="ghost" id="foldAll"
+              title="Fold every folder's session list">Fold all</button>
+      <button class="btn btn-sm" data-variant="ghost" id="railToggle"
+              title="Collapse the rail to 48px">‹</button>
+    </div>
+    <!-- Filters what is DISPLAYED. Nothing is hidden permanently and nothing
+         is deleted; clearing the box brings everything back. It lives here,
+         outside the rebuilt list, so typing never destroys the field. -->
+    <div class="rail-filter-wrap">
+      <input class="input rail-filter t-body" id="railFilter" type="search"
+             placeholder="Filter sessions…" autocomplete="off"
+             aria-label="Filter the session list by name, folder or id">
+    </div>
+    <div class="rail-body" id="railBody"></div>
+    <!-- The "Archived (N)" reveal (WP13 §2). app.js fills it; empty when nothing
+         is archived. A local hidden-list — nothing here is deleted. -->
+    <div class="rail-archived" id="railArchived"></div>
+    <div class="rail-foot">
+      <button class="btn" id="btnNewSession"
+              title="Start a new session in a folder you pick.">
+        <span class="wide">New session</span><span class="narrow">+</span>
+      </button>
+      <button class="btn btn-sm" data-variant="ghost" id="btnImportSession"
+              title="Import a session from a bundle file.">
+        <span class="wide">Import</span><span class="narrow">↥</span>
+      </button>
+      <span class="caption-note t-caption dimr" id="railFootNote">—</span>
+    </div>
+  </aside>
+
+  <!-- ── MAIN COLUMN ───────────────────────────────────────────────── -->
+  <div class="main">
+
+    <!-- Status strip. 40px. Always visible once a session exists. -->
+    <div class="strip" id="strip">
+      <div class="state">
+        <span class="dot" id="dot"></span>
+        <span class="state-label t-med" id="stateLabel">Connecting…</span>
+      </div>
+      <div class="strip-id">
+        <span class="t-body trunc" id="sessionName">—</span>
+        <span class="t-caption dimr trunc" id="sessionCwd"></span>
+      </div>
+      <div class="strip-right">
+        <!-- Auto-approve — the ONE global switch (D58/D62). Always visible so its
+             on/off state is never hidden; the scope ("all sessions") is on the
+             control's own face, and again in its tooltip, the turn-on confirm
+             and the banner below. When on, the banner is the unmissable honesty
+             rail (charter promise 4). -->
+        <button class="aa-pill t-caption" id="autoApprove" data-on="false"
+                aria-pressed="false" hidden></button>
+        <span class="badge t-caption" id="subagents" hidden></span>
+        <!-- An event kind this build does not handle, arriving with no session
+             on it. It cannot go into a session's stream without misattributing
+             it, so it is counted here and listed in the Agent-wide panel.
+             Event kinds this build has not handled before. D35. -->
+        <button class="badge t-caption" id="unhandledBadge" data-tone="warn" hidden></button>
+        <span class="badge t-caption" id="fillingBadge" data-tone="warn" hidden>Context filling</span>
+        <div class="meter" id="meter">
+          <span class="t-caption dim">Context</span>
+          <div class="bar" id="bar" role="progressbar" aria-label="context usage"
+               aria-valuemin="0" aria-valuemax="100">
+            <div class="bar-fill" id="barFill"></div>
+            <div class="bar-threshold" id="barThreshold" hidden></div>
+          </div>
+          <span class="t-mono-sm" id="meterRead">— / —</span>
+        </div>
+        <button class="btn btn-sm" data-variant="ghost" id="drawerToggle"
+                aria-expanded="false" aria-controls="drawer">Details</button>
+      </div>
+    </div>
+
+    <!-- Auto-approve honesty rail (WP13 §3, D62, charter promise 4). Shown
+         whenever any session is approve-everything, sourced from the roster's
+         own yolo flag — the danger signal auto-approve otherwise suppresses. -->
+    <div class="aa-banner" id="autoApproveBanner" data-show="false" role="status"></div>
+
+    <!-- WP12: the subscription gate (settings.updated with a gate_message).
+         Banner ONLY — the composer stays enabled (the director's call; the agent
+         does not itself refuse prompts mid-session). The message is
+         remote-server content: rendered as text, and its link sits behind a
+         confirmation, never a bare anchor. -->
+    <div class="aa-banner gate-banner" id="gateBanner" data-show="false" role="status"></div>
+
+    <!-- The "agent process gone" surface. Spec §1: prominent banner,
+         Reconnect primary, input disabled, left rail stays usable. -->
+    <div class="banner" id="banner" data-show="false" role="alert">
+      <div class="banner-row">
+        <div class="grow">
+          <div class="t-title" id="bannerTitle">Agent process gone</div>
+          <div class="t-body dim" id="bannerBody">
+            The local agent process is no longer running. Sessions are preserved.
+          </div>
+        </div>
+        <!-- D86: this button is hidden and inert on the gone/respawning
+             banners — there is no reconnect method, so a pressable control
+             there would lie. It is NOT dead markup: app.js shows and enables
+             it, relabelled "Try again", on the states where a retry is real —
+             a failed startup and a stopped crash-loop respawn (POST
+             /agent/restart), and disabled-but-present on the "Could not
+             connect" banner, where the browser's own stream retry is the only
+             mechanism and the label says so. -->
+        <button class="btn" id="btnReconnect" disabled>Reconnect</button>
+      </div>
+      <div class="t-caption dimr gap-above" id="bannerNote"></div>
+    </div>
+
+    <div class="canvas" id="canvas"><div class="canvas-inner" id="canvasInner"></div></div>
+
+    <!-- The notice strip (WP14) — the visible home for note()'s sentences:
+         one line, dismissible, showing the latest notice until it is dismissed
+         or a newer one replaces it. The sentences are the same ones the dev
+         Shell tab logs; no new copy. Neutral tokens only — gold stays licensed
+         to its three waiting-for-you surfaces (D45/D53); failures use the
+         failed/red voice. role="status" so a failure is heard, not only seen. -->
+    <div class="notice-strip" id="noticeStrip" role="status" hidden></div>
+
+    <!-- Composer. min 72px. Multiline, Send / Stop. -->
+    <div class="composer">
+      <div class="composer-inner" id="composerInner">
+        <!-- The slash launcher's overlay (WP7). Opens UPWARD over the canvas,
+             inside this same 720px column: not a page, not a drawer, not a
+             modal, and never a permanent row. app.js builds it on a leading
+             "/" and clears it on close; empty and hidden otherwise. -->
+        <div class="launcher-host" id="launcherHost" hidden></div>
+        <div class="composer-row">
+          <textarea class="input" id="prompt" rows="2" disabled
+                    aria-label="Message to the agent"
+                    placeholder="What do you want to build?"></textarea>
+          <button class="btn" id="btnSend" disabled>Send</button>
+          <button class="btn" data-variant="ghost" id="btnStop" disabled>Stop</button>
+        </div>
+        <div class="composer-meta">
+          <!-- Exactly one real toggle exists. There is no Modes panel:
+               subagents, skills, workflows and loops are not modes.
+               Reconciliation §B. Wired in WP7, and driven by confirmedModeId
+               alone — which is legitimately null most of the time — never by
+               the response to set_mode, which succeeds for any string
+               including a typo, and never optimistically on the click. -->
+          <button class="btn btn-sm" data-variant="ghost" id="btnPlan" disabled
+                  data-toggle="off" aria-pressed="false">Plan mode</button>
+          <span class="t-caption dimr plan-state" id="planState"></span>
+          <!-- Reasoning effort (D71). Options, order, labels, descriptions and
+               the default marker are all the agent's own runtime metadata; the
+               value shown is the roster read-back, never the request. Hidden
+               entirely when the agent reports no effort levels — there is no
+               invented "Default". -->
+          <label class="composer-effort t-caption dimr" id="effortWrap" hidden>
+            <span class="effort-label">Effort</span>
+            <select class="composer-select t-caption" id="effortSelect"></select>
+          </label>
+          <span class="t-caption dimr trunc model-readout" id="modelReadout">—</span>
+          <!-- Kept to one short line on purpose. The long version is the title
+               attribute: this note sits inside a wrapping flex row, and at
+               720px the full sentence wrapped to three lines and pushed the
+               composer to 144px against the spec's 72px floor. -->
+          <span class="t-caption dimr trunc grow" id="composerNote"></span>
+        </div>
+        <!-- One polite live region for the composer's outcomes: plan state,
+             effort read-back, and the launcher opening. Visually hidden; never
+             used to narrate routine filtering or background updates. -->
+        <div class="sr-only" id="liveRegion" aria-live="polite" aria-atomic="true"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── RIGHT DRAWER ──────────────────────────────────────────────── -->
+  <!-- One drawer. 320px. Default closed. Spec §1. -->
+  <aside class="drawer" id="drawer" aria-label="Details">
+    <div class="drawer-tabs" role="tablist">
+      <button class="tab" role="tab" data-tab="detail"  id="tabDetail"
+              aria-controls="drawerBody" aria-selected="true">Detail</button>
+      <button class="tab" role="tab" data-tab="context" id="tabContext"
+              aria-controls="drawerBody" aria-selected="false">Context</button>
+      <button class="tab" role="tab" data-tab="agent"   id="tabAgent"
+              aria-controls="drawerBody" aria-selected="false">Agent-wide</button>
+      <button class="tab" role="tab" data-tab="shell" id="tabShell"
+              aria-controls="drawerBody" aria-selected="false">Shell</button>
+      <!-- Below 1180px the drawer overlays the strip, including the Details
+           button that opened it. Without this there is no way back. -->
+      <button class="tab tab-close" id="drawerClose"
+              title="Close this panel">×</button>
+    </div>
+    <div class="drawer-body" id="drawerBody" role="tabpanel"
+         aria-labelledby="tabDetail"></div>
+  </aside>
+
+  <!-- The folder picker (WP5.5 / D47). app.js builds it into this host when New
+       Session is pressed and clears it on close; empty and hidden otherwise.
+       Directories only, in-app — not a native dialog and not a path textbox. -->
+  <div class="picker-host" id="pickerHost" hidden></div>
+
+  <!-- The context meter's popover (WP9; spec §4 fed by reconciliation §A.3).
+       app.js fills it from the last full session/info reading — the wire has
+       no honest live tick (D80) — and it carries the Compact control. Empty
+       and hidden otherwise; Escape / outside-click close it. -->
+  <div class="ctxpop-host" id="ctxpopHost" hidden></div>
+
+  <!-- WP13 modals: delete confirm, export, import, auto-approve confirm. app.js
+       builds one into this host and clears it on close; empty and hidden
+       otherwise. Escape and the backdrop close it (closing is always safe). -->
+  <div class="modal-host" id="modalHost" hidden></div>
+
+  <!-- Hidden file input for importing a session bundle (WP13 §5). Triggered by
+       the Import button; app.js reads the chosen file and posts /session/import. -->
+  <input type="file" id="importFile" accept=".json,application/json" hidden>
+</div>
+
+<script src="/app.js?token=__STUDIO_TOKEN__" defer></script>
+</body>
+</html>

@@ -1,0 +1,1682 @@
+/* ══════════════════════════════════════════════════════════════════════
+   GRAPHOMETER — application shell (BUILD-PLAN WP4 · WP5 · WP5.5 · WP6 · WP7 · WP13 · WP11 · WP14)
+
+   WP4 built the frame; WP5 filled the middle of it and turned Send and Stop on.
+   WP5.5 — the daily-use correction the dogfood produced (D47/D48) — made the
+   conversation larger, brighter and clearly separated (user's accent edge left,
+   agent's right), collapsed routine activity behind one row, and turned New
+   Session on with a real folder picker. WP6 put the blocking decisions on cards
+   in the stream; WP13 added session administration and portability; WP7 filled
+   the composer's meta row — the plan toggle, the runtime effort selector and
+   the slash launcher's upward overlay. WP11 added the changes pane (§12): the
+   drawer's changed-file list with per-hunk before/after and undo. WP14 (the
+   release pass) added the notice strip, removed the last stub-era styling,
+   and closed the keyboard/ARIA gaps (a closed drawer's contents no longer
+   take focus; the modals trap and restore focus).
+
+   Design authority: DESIGN-SPEC-GROK-V1.md §1 (architecture, dimensions),
+   §2 (the words), §5 (visual language), as corrected on protocol facts by
+   docs/DESIGN-SPEC-RECONCILIATION.md.
+
+   ── 1. TOKENS ────────────────────────────────────────────────────────
+
+   Two layers, and the split between them is the whole of decision D6.
+
+   LAYER 1 — theme values. Every colour literal in this file is inside the
+   one [data-theme="dark"] block below. A light theme is a second block with
+   the same names and different values: `:root[data-theme="light"] { … }`.
+   Nothing else in the file changes, because nothing else in the file
+   contains a colour.
+
+   LAYER 2 — geometry and type, in :root. Theme-independent. The type scale
+   is a set of variables for the same reason: D6 raised body copy from the
+   spec's 13px to 14px, and that was a change of two numbers, not of any
+   rule that uses them.
+
+   Values are the spec's own, with three documented exceptions:
+     · The five --ctx-* category tokens are GONE (reconciliation §A.3). The
+       real context categories overlap each other and do not stack, so
+       there are four bar colours and one informational colour instead. The
+       replacements reuse the deleted tokens' own values — no new colour
+       enters the product.
+     · The type scale is shifted up one step (D6). Ratios preserved.
+     · The approved legibility pass (D45) raised a measured set of colours
+       so honest copy, borders and disabled states clear their contrast
+       floors, and moved gold off everything except "the machine is waiting
+       for you". The literals that changed are marked LEGIBILITY below; every
+       one is still inside this one block, so a light theme is still a second
+       block of the same names. Nothing else in the file carries a colour.
+   ────────────────────────────────────────────────────────────────────── */
+
+:root[data-theme="dark"] {
+  --bg-void:          #050505;
+  --bg-base:          #0C0C0C;
+  --bg-surface:       #141414;
+  --bg-elevated:      #1C1C1C;
+  --bg-input:         #181818;   /* LEGIBILITY: was #121212 — the input now reads as a field, lighter than its surround */
+  --bg-overlay:       rgba(0,0,0,0.78);
+
+  --border-muted:     #3C3C3C;   /* D48: was #333333 — crisper block / notice edges */
+  --border-default:   #454545;   /* D48: was #383838 — inputs and quiet rules read */
+  --border-strong:    #585858;   /* D48: was #4A4A4A — turn dividers and card edges carry */
+  --border-focus:     #7C7C7C;   /* D48: was #6E6E6E — focus, and the agent's right edge */
+
+  /* D48 brightness pass (the daily-use correction). The director used the settled 14px
+     build for real work and found it not only small but DIM against crisp,
+     high-contrast competitors. The text steps move up together so the hierarchy
+     is preserved — primary well above secondary well above tertiary — and every
+     literal is still inside this one dark-theme block, so a light theme stays a
+     second block of the same names (D6 structure intact). */
+  --text-primary:     #FCFCFC;   /* D48 + director follow-up: was #E8E8E8 → #F4F4F4 → #FCFCFC, a crisper neutral white (no cast) */
+  --text-secondary:   #BCBCBC;   /* D48: was #9A9A9A — labels, notes, cost no longer faint */
+  --text-tertiary:    #9C9C9C;   /* D48: was #8A8A8A — metadata, still clearly below body */
+  --text-disabled:    #6E6E6E;   /* LEGIBILITY: was #3A3A3A — 1.72 → 3.84 on base */
+
+  --accent:           #A8B4C0;   /* cold steel — action/focus only */
+  --accent-hover:     #C0CAD4;
+  --accent-muted:     #4A5560;
+
+  /* D68: the G Gauge is the one branding-only exception to D45's operational
+     gold rule. These values occur inside the static logo and never indicate UI
+     state; every interactive/state surface continues to use the tokens below. */
+  --brand-logo-bg:    #111318;
+  --brand-logo-line:  #454545;
+  --brand-logo-ink:   #FCFCFC;
+  --brand-gold:       #C9A45C;
+
+  --state-idle:       #5E5E5E;
+  --state-connecting: #7A8A9A;
+  --state-ready:      #8A9A8A;
+  --state-thinking:   #A8B4C0;
+  --state-streaming:  #A8B4C0;
+  --state-tool:       #9A8A7A;
+  --state-permission: #C0A050;   /* amber — blocking only */
+  --state-plan:       #C0A050;
+  --state-editing:    #8A9AB0;
+  --state-complete:   #6A9A6A;
+  --state-cancelled:  #848484;   /* LEGIBILITY: was #7A7A7A — 4.56 → 5.23 on base */
+  --state-failed:     #C06060;   /* LEGIBILITY: was #B05050 — 3.83 → 4.74 on base, and now louder than routine noise */
+  --state-compacting: #8A7A9A;
+  --state-gone:       #C06060;   /* LEGIBILITY: was #B05050 — matches --state-failed */
+  /* LEGIBILITY (D45): "Context filling" is a non-blocking status, so steel,
+     not the waiting-amber it used to borrow. Steel, not gold. */
+  --state-filling:    #6A7A8A;
+
+  /* The context meter. FOUR bar segments that genuinely sum to `total`,
+     plus one colour shared by every informational row. Reconciliation §A.3.
+     The values are the deleted --ctx-system / --ctx-conversation /
+     --ctx-tools / --ctx-other, reused rather than replaced. */
+  --ctx-system:       #4A5560;
+  --ctx-messages:     #6A7A8A;
+  --ctx-overhead:     #7A6A5A;
+  --ctx-free:         #1C1C1C;
+  --ctx-info-row:     #5A5A5A;
+  --ctx-threshold:    #6A7A8A;   /* LEGIBILITY (D45): was #C0A050 gold — the marker is not "waiting on you", so steel */
+
+  /* WP11: the changes pane's before/after colouring. The values are the
+     existing complete-green and failed-red, reused under their own names so
+     the pane's semantics are its own. Colour on TEXT frames only — the hunk
+     content itself is textContent, never markup (D31). */
+  --diff-add:         #6A9A6A;   /* the --state-complete value */
+  --diff-del:         #C06060;   /* the --state-failed value */
+}
+
+:root {
+  /* Type. UI and mono stacks verbatim from spec §5. */
+  --font-ui:   Inter, "SF Pro Text", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", "SF Mono", Consolas, "Cascadia Code", monospace;
+
+  /* Scale. D6 raised body from the spec's 13px to 14px; D48 raises it again to
+     15px after the director read the 14px build in real use and still found it too
+     small (and, more to the point, too dim — see the brightness pass above).
+     D48 supersedes ONLY D6's size value: the rest of the scale moves with body
+     so the hierarchy the spec designed survives — title 17, a new 13px label
+     step for speaker/turn labels, captions at 12px (the floor). */
+  --fs-display:  22px;   /* spec 20 — first-open title only */
+  --fs-title:    17px;   /* spec 15 · D6 16 → 17 (D48) */
+  --fs-body:     15px;   /* spec 13 · D6 14 → 15 (D48, supersedes only D6's size) */
+  --fs-caption:  12px;   /* spec 11 */
+  --fs-label:    13px;   /* D48: speaker + turn labels — structure, above metadata */
+  --fs-mono:     13px;   /* spec 12 */
+  --fs-mono-sm:  12px;   /* spec 11 */
+
+  --lh-display: 1.3;
+  --lh-title:   1.35;
+  --lh-body:    1.6;     /* D48: was 1.45 — long research prose breathes */
+  --lh-caption: 1.4;
+  --lh-mono:    1.4;
+
+  --fw-normal:   400;
+  --fw-med:      500;
+  --fw-semibold: 600;   /* LEGIBILITY (D45): turn numbers and speaker labels read as structure */
+
+  /* Spacing. Base unit 4px, spec §5. */
+  --s1:  4px;
+  --s2:  8px;
+  --s3:  12px;
+  --s4:  16px;
+  --s6:  24px;
+  --s8:  32px;
+  --s16: 64px;
+
+  /* Layout constants, spec §1 "Dimensions". These are the numbers the
+     screenshots are measured against. */
+  --rail-w:            240px;
+  --rail-w-collapsed:   48px;
+  --strip-h:            40px;
+  --drawer-w:          320px;
+  --composer-min-h:     72px;
+  --read-max:          720px;   /* conversation content max readable width */
+  --centred-max:       640px;   /* empty-state / approval content max */
+
+  /* Geometry. Radius 0 everywhere, borders 1px, depth by background step
+     only. There are no shadows in this file except the focus outline. */
+  --radius: 0px;
+  --hairline: 1px;
+
+  /* Motion, spec §5. */
+  --t-state: 160ms;
+  --t-pulse: 1200ms;
+}
+
+/* ── 2. RESET ──────────────────────────────────────────────────────── */
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg-void);
+  color: var(--text-primary);
+  font: var(--fw-normal) var(--fs-body)/var(--lh-body) var(--font-ui);
+  overflow: hidden;
+  /* The masthead sits above the app grid, so the page is a column: a fixed
+     band, then everything else. `min-height: 0` on .app below is the same
+     lifeline that keeps the composer on screen — do not remove either. */
+  display: flex;
+  flex-direction: column;
+}
+button, input, textarea, select { font: inherit; color: inherit; border-radius: var(--radius); }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: var(--hairline) solid var(--border-focus); outline-offset: 1px; }
+::selection { background: var(--accent-muted); color: var(--text-primary); }
+/* The global [hidden] guard. The UA stylesheet's `[hidden] { display: none }`
+   loses to ANY component rule that sets display at equal-or-higher
+   specificity — measured live in the WP12 evidence run: the gone banner's
+   Reconnect button rendered (disabled) despite `hidden = true`, because
+   `.btn { display: inline-flex }` overrode it (docs/evidence/wp12/, finding
+   F1). The same latent bug sat on `.composer-effort` and `.aa-pill`
+   (both inline-flex). Class-scoped guards like `.fold-body[hidden]` can't
+   keep up with new components, so the guard is global and carries the
+   important flag — the only one in this file, and that is deliberate:
+   `hidden` is a statement about visibility that no component rule may
+   overrule. */
+[hidden] { display: none !important; }
+h1, h2, h3, p { margin: 0; }
+/* No italics anywhere — spec §5. */
+em, i, cite, address { font-style: normal; }
+
+/* ── 3. TYPE HELPERS ──────────────────────────────────────────────── */
+
+.t-display { font-size: var(--fs-display); font-weight: var(--fw-med); line-height: var(--lh-display); }
+.t-title   { font-size: var(--fs-title);   font-weight: var(--fw-med); line-height: var(--lh-title); }
+.t-body    { font-size: var(--fs-body);    font-weight: var(--fw-normal); line-height: var(--lh-body); }
+.t-med     { font-size: var(--fs-body);    font-weight: var(--fw-med); line-height: var(--lh-body); }
+.t-caption { font-size: var(--fs-caption); font-weight: var(--fw-normal); line-height: var(--lh-caption); letter-spacing: 0.01em; }
+.t-mono-sm { font-family: var(--font-mono); font-size: var(--fs-mono-sm); line-height: 1.35; }
+.dim  { color: var(--text-secondary); }
+.dimr { color: var(--text-tertiary); }
+.trunc { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ── 4. SHELL GRID ─────────────────────────────────────────────────── */
+/*
+   Three columns. The rail and the drawer size themselves; the middle column
+   takes what is left and is the only thing that reflows. A closed drawer is
+   0 wide, which is why the canvas grows into it rather than sliding under
+   it.
+
+   The width lives on the PANEL, not on the grid, and it is the panel that
+   transitions — spec §5: "Panel open/close: 160 ms ease-out width." An
+   earlier version transitioned `grid-template-columns` on this element
+   instead, which also works; this shape is the one the spec describes, and a
+   closed drawer is then genuinely 0 wide rather than 0 plus a border.
+*/
+/* ── 4a. MASTHEAD ──────────────────────────────────────────────────── */
+/*
+   Permanent top-of-shell brand space (D49, D66-D68). The G Gauge, formal
+   product name, vendor/non-affiliation descriptor, and site link fit inside
+   the existing band; they must never compete with the strip's state label.
+   48px is the whole budget (44px under 880px), and the red line is 56px: at a
+   600px-tall window the canvas floor is ~440px (600 − 48 − 40 strip − 72
+   composer). Nothing else may ever be added above the strip — no status, no
+   buttons, no second bar. Status lives in the strip.
+*/
+.masthead {
+  flex: none;
+  height: 48px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--s3);
+  padding: 0 var(--s4);
+  background: var(--bg-base);
+  border-bottom: var(--hairline) solid var(--border-default);
+}
+.mh-identity { min-width: 0; display: flex; align-items: center; gap: var(--s3); }
+.mh-logo {
+  width: 35px; height: 35px; flex: none;
+}
+.mh-logo-field { fill: var(--brand-logo-bg); stroke: var(--brand-logo-line); }
+.mh-logo-g {
+  fill: none; stroke: var(--brand-logo-ink); stroke-width: 2.8; stroke-linecap: round;
+}
+.mh-logo-needle {
+  stroke: var(--brand-gold); stroke-width: 3; stroke-linecap: round;
+}
+.mh-logo-hub { fill: var(--brand-gold); }
+.mh-copy { min-width: 0; display: flex; flex-direction: column; line-height: 1; }
+.mh-titleline {
+  display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.mh-house {
+  font-size: 14px; font-weight: var(--fw-semibold); letter-spacing: 0.06em;
+  color: var(--text-secondary);
+}
+.mh-product {
+  font-size: var(--fs-body); font-weight: var(--fw-semibold); letter-spacing: 0.04em;
+  color: var(--text-primary);
+}
+.mh-affiliation {
+  display: block; margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  /* WP14: was 9px/1 — below this file's own 12px caption floor. The caption
+     token; D68 keeps the affiliation text visible, and legible is compliance. */
+  font-size: var(--fs-caption); line-height: var(--lh-caption); letter-spacing: 0.06em; color: var(--text-tertiary);
+}
+.mh-site {
+  flex: none; color: var(--text-tertiary); font-size: var(--fs-caption);
+  letter-spacing: 0.03em; text-decoration: none;
+}
+.mh-site:hover { color: var(--accent); text-decoration: underline; }
+.mh-site-short { display: none; }
+
+.app {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Fills the column under the masthead. min-height: 0 is load-bearing: it is
+     what lets the canvas scroll internally instead of pushing the composer
+     below the viewport (the WP5.5 trap-5 fix, re-anchored under the new
+     flex parent). */
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── 5. LEFT RAIL ──────────────────────────────────────────────────── */
+
+.rail {
+  width: var(--rail-w);
+  background: var(--bg-base);
+  border-right: var(--hairline) solid var(--border-default);
+  display: flex; flex-direction: column;
+  min-width: 0; overflow: hidden;
+  transition: width var(--t-state) ease-out;
+}
+.app[data-rail="collapsed"] .rail { width: var(--rail-w-collapsed); }
+.rail-head {
+  height: var(--strip-h); flex: none;
+  display: flex; align-items: center; gap: var(--s2);
+  padding: 0 var(--s3);
+  border-bottom: var(--hairline) solid var(--border-muted);
+}
+.rail-title { flex: 1; min-width: 0; color: var(--text-secondary); }
+.rail-body { flex: 1; overflow-y: auto; overflow-x: hidden; }
+.rail-foot {
+  flex: none; padding: var(--s3);
+  border-top: var(--hairline) solid var(--border-muted);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+
+/* The folder group header (WP8 rail gate, the director's "change the headers"). It is
+   a section divider, not a whisper of a row: a hairline separates each folder's
+   block, the name is semibold at label brightness, and the count says "sessions"
+   in words instead of a bare number. No text-transform — a folder name is a real
+   case-sensitive path and must read exactly as the filesystem spells it. */
+.group-head {
+  display: flex; align-items: baseline; gap: var(--s2);
+  width: 100%; text-align: left;
+  padding: var(--s2) var(--s3) var(--s1);
+  background: none; border: none;
+  border-top: var(--hairline) solid var(--border-muted);
+  color: var(--text-secondary);
+}
+.group-head:first-child { border-top: none; }
+.group-head:hover { color: var(--text-primary); }
+/* The folder caret (WP8 rail gate): at 8px/tertiary it whispered — "tiny
+   triangle" was the director's phrase. Label size, label brightness. */
+.group-caret { color: var(--text-secondary); font-size: var(--fs-label); width: 11px; flex: none; }
+.group-name  { flex: 1; min-width: 0; font-weight: var(--fw-semibold); letter-spacing: 0.03em; }
+.group-count { color: var(--text-tertiary); flex: none; }
+
+/* List item: 36px, selected = elevated bg + 2px left accent. Spec §5. */
+.s-row {
+  display: flex; align-items: center; gap: var(--s2);
+  width: 100%; height: 36px; text-align: left;
+  padding: 0 var(--s3) 0 calc(var(--s3) - 2px);
+  background: none; border: none; border-left: 2px solid transparent;
+  color: var(--text-primary);
+}
+.s-row:hover { background: var(--bg-surface); }
+/* "Where was I" (acceptance walk, 2026-08-02): a 2px edge alone did not answer
+   it in a rail of ~90 near-identical rows. The active row now also carries a
+   brighter ground, a full-strength name and a literal "here" tag. */
+.s-row[aria-current="true"] {
+  background: var(--bg-elevated);
+  border-left-color: var(--accent);
+  border-left-width: 3px;
+}
+.s-row[aria-current="true"] .s-row-name { color: var(--text-primary); font-weight: var(--fw-med); }
+.s-row-here {
+  flex: none; color: var(--accent);
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+/* The filter sits between the head and the list, on the rail's own ground. */
+.rail-filter-wrap { flex: none; padding: var(--s2) var(--s3) 0; }
+.rail-filter { width: 100%; height: 30px; padding: 0 var(--s2); }
+.app[data-rail="collapsed"] .rail-filter-wrap { display: none; }
+.s-row-name { flex: 1; min-width: 0; }
+.s-row-meta { flex: none; color: var(--text-tertiary); }
+.s-row-held { flex: none; color: var(--accent-muted); }
+/* The worktree chip (WP8): protocol-truth only, neutral so it never competes
+   with the state colours. */
+.s-row-wt { flex: none; color: var(--text-tertiary); letter-spacing: 0.04em; }
+
+/* Collapsed rail: one 36px cell per session, the activity dot and an
+   initial. Spec §1 says "collapses to 48px icon-only". */
+.app[data-rail="collapsed"] .rail-title,
+.app[data-rail="collapsed"] .group-head,
+.app[data-rail="collapsed"] .s-row-name,
+.app[data-rail="collapsed"] .s-row-meta,
+.app[data-rail="collapsed"] .s-row-held,
+.app[data-rail="collapsed"] .s-row-wt,
+.app[data-rail="collapsed"] #foldAll,
+.app[data-rail="collapsed"] .rail-foot .btn .wide,
+.app[data-rail="collapsed"] .rail-foot .caption-note { display: none; }
+.app[data-rail="collapsed"] .s-row { justify-content: center; padding: 0; }
+.app[data-rail="collapsed"] .s-row-initial,
+.app[data-rail="collapsed"] .rail-foot .btn .narrow { display: block; }
+.app[data-rail="collapsed"] .rail-foot .btn { justify-content: center; padding: 0; }
+.s-row-initial, .rail-foot .btn .narrow { display: none; color: var(--text-secondary); }
+
+/* ── 6. MAIN COLUMN ────────────────────────────────────────────────── */
+
+/* `min-height: 0` is the composer's lifeline. `.main` is a grid item, and a
+   grid item's automatic minimum is its CONTENT height — so without this, a
+   conversation taller than the viewport grows `.main` past the window, the
+   canvas never gets an internal scrollbar, and the composer is pushed below a
+   `body { overflow: hidden }` fold with no way to scroll to it. Reproduced in a
+   headed browser at 1000px: `.main` reached 2692px and the composer landed at
+   y≈2692, off-screen. With this line `.main` is capped at the row and `.canvas`
+   scrolls internally. One line, and it is the difference between usable and not. */
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; background: var(--bg-base); }
+
+/* Status strip: 40px, never collapses, never hides. Spec §1. */
+.strip {
+  height: var(--strip-h); flex: none;
+  display: flex; align-items: center; gap: var(--s4);
+  padding: 0 var(--s4);
+  background: var(--bg-surface);
+  border-bottom: var(--hairline) solid var(--border-default);
+}
+.state { display: flex; align-items: center; gap: var(--s2); flex: none; }
+.dot {
+  width: 8px; height: 8px; flex: none;
+  background: var(--state-idle);
+  border-radius: var(--radius);
+}
+.dot[data-pulse="true"] { animation: pulse var(--t-pulse) linear infinite; }
+@keyframes pulse { 0% { opacity: 0.4; } 50% { opacity: 1; } 100% { opacity: 0.4; } }
+@media (prefers-reduced-motion: reduce) {
+  .dot[data-pulse="true"] { animation: none; opacity: 1; }
+  .rail, .drawer, .bar-fill > i { transition: none; }
+}
+.state-label { color: var(--text-primary); }
+.strip-id { flex: 1; min-width: 0; display: flex; align-items: baseline; gap: var(--s2); }
+.strip-right { flex: none; display: flex; align-items: center; gap: var(--s3); }
+.badge {
+  flex: none; padding: 1px var(--s2);
+  border: var(--hairline) solid var(--border-default);
+  color: var(--text-secondary);
+}
+/* LEGIBILITY (D45): the "N unhandled" count badge and the "Context filling"
+   badge are non-blocking status, not "the machine is waiting for you" — so
+   neutral steel-grey, never gold. */
+.badge[data-tone="warn"] { border-color: var(--border-strong); color: var(--text-secondary); }
+
+/* ── 7. CONTEXT METER (spec §4, arithmetic from reconciliation §A.3) ── */
+
+.meter { display: flex; align-items: center; gap: var(--s2); flex: none; }
+.bar {
+  position: relative;
+  width: 160px; height: 6px; flex: none;
+  background: var(--ctx-free);
+  border: var(--hairline) solid var(--border-muted);
+}
+/* LEGIBILITY (D45): a near-full meter is a non-blocking warning, not "the machine
+   is waiting for you" — neutral strong border, not gold. */
+.bar[data-near="true"] { border-color: var(--border-strong); }
+.bar-fill { position: absolute; inset: 0; display: flex; }
+.bar-fill > i {
+  display: block; height: 100%;
+  transition: width var(--t-state) linear;
+}
+.bar-threshold {
+  position: absolute; top: -2px; bottom: -2px; width: var(--hairline);
+  background: var(--ctx-threshold);
+}
+/* Compacting: a moving diagonal hatch over the bar, 800ms. Spec §5. */
+.bar[data-compacting="true"]::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(45deg,
+    var(--state-compacting) 0 2px, transparent 2px 6px);
+  animation: hatch 800ms linear infinite;
+}
+@keyframes hatch { from { background-position: 0 0; } to { background-position: 8px 0; } }
+
+/* WP9: the whole meter cluster is one control — it opens the popover. */
+.meter { cursor: pointer; }
+.meter .t-caption { cursor: inherit; }
+
+/* The popover (WP9, spec §4): 240px, fixed under the strip, right-aligned to
+   the meter by app.js. Zero radius, no shadow — the design language holds. */
+.ctxpop-host { position: fixed; inset: 0; z-index: 3; pointer-events: none; }
+.ctxpop {
+  position: fixed; width: 240px; max-height: 70vh; overflow-y: auto;
+  pointer-events: auto;
+  background: var(--bg-elevated);
+  border: var(--hairline) solid var(--border-strong);
+  padding: var(--s3);
+  display: flex; flex-direction: column; gap: var(--s2);
+}
+.ctxpop-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s2); }
+.ctxpop-state-filling { color: var(--text-secondary); }
+.ctxpop-state-compacting { color: var(--state-compacting); }
+.ctxpop-total { margin: 0; }
+.ctxpop-infohead { margin-top: var(--s2); }
+.ctxpop-compact { align-self: flex-start; }
+.ctxpop .grid td, .ctxpop .grid th { padding: 1px var(--s1) 1px 0; }
+.ctxpop .grid .num { white-space: nowrap; }
+
+.swatch { width: 8px; height: 8px; flex: none; display: inline-block; }
+
+/* WP9: the ≤700px short face ("Auto-approve · all"), swapped in by the narrow
+   media query below. Both spans are always in the DOM; CSS alone picks which
+   shows. This default must sit BEFORE the media queries in the file — after
+   them it outranks them at equal specificity and the pill collapses to a
+   bare ON/OFF (measured live: narrowDisplay none at 600px). */
+.aa-pill .aa-key-narrow { display: none; }
+
+/* ── 8. CANVAS ─────────────────────────────────────────────────────── */
+
+.canvas { flex: 1; min-height: 0; overflow-y: auto; }
+.canvas-inner { max-width: var(--read-max); margin: 0 auto; padding: var(--s6) var(--s4) var(--s8); }
+.centred {
+  max-width: var(--centred-max); margin: 0 auto;
+  padding: var(--s16) var(--s4);
+  display: flex; flex-direction: column; gap: var(--s3); align-items: flex-start;
+}
+/* WP10: the agent facts panel on the first-run canvas and in the Agent tab. */
+.agent-facts { width: 100%; }
+/* WP15 walk fix: labels WRAP inside the fixed 38% kv column. WP10 set nowrap
+   for its short labels ("version", "process"); WP15's labels are sentences
+   ("zero-data retention (ZDR)"), and a nowrap label in a 90px column paints
+   straight over the value text — measured live 2026-08-11 ("OFF" on top of
+   the ZDR label at every viewport width; the label box is 90px, its text
+   ~140px). The kv rule's own contract says long content wraps rather than
+   stretching the table; that now holds for labels too. */
+.agent-facts .grid th { white-space: normal; }
+/* WP15: value + switch on one retention row. Gold is NOT used here (D45/D53). */
+.agent-facts .fact-with-control {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--s2);
+}
+.agent-facts .fact-value { flex: 1 1 12rem; min-width: 0; }
+.agent-facts .fact-switch {
+  flex: 0 0 auto;
+  height: auto;
+  min-height: 28px;
+  padding: 2px 10px;
+  font-size: var(--t-caption, 12px);
+}
+
+.panel {
+  border: var(--hairline) solid var(--border-muted);
+  background: var(--bg-surface);
+  padding: var(--s4);
+  margin-bottom: var(--s4);
+}
+.rule { height: var(--hairline); background: var(--border-muted); margin: var(--s3) 0; }
+
+/* Two utilities that replace markup `style=` attributes, so the CSP can forbid
+   inline styles outright rather than allowing them and hoping. */
+.grow { flex: 1; min-width: 0; }
+.gap-above { margin-top: var(--s2); }
+
+/* ── 8b. THE CONVERSATION STREAM (WP5) ───────────────────────────────────
+   Spec §1: "Conversation stream (newest near input): user messages, thinking
+   blocks (collapsible), tool-call cards, file-edit summaries, agent response
+   text." Every block below is one of those, plus two the spec could not know
+   about: the turn boundary that carries the cost, and the unhandled-event card.
+
+   THE MEASURE. Everything sits inside .canvas-inner, which is the spec's 720px
+   reading measure. Nothing in here is wider than that and nothing centres
+   itself — the stream reads top to bottom in one column.
+
+   NO CHAT BUBBLES. The spec's visual language is "restrained, cold, precise,
+   zero soft rounding". Speaker is carried by a 2px left border and a caption,
+   not by alignment or a rounded shape. Radius stays 0.
+   ─────────────────────────────────────────────────────────────────────── */
+
+.stream { display: flex; flex-direction: column; }
+
+/* A turn: everything from the prompt to the cost line. */
+/* D48: the boundary between turns has to carry at arm's length — 2px at
+   --border-strong with more space above. The director found the 1px rule too thin in
+   real use ("the lines are thin"). Heavier and higher-contrast, not busier:
+   the extra weight is one rule per turn, and the air does the separating. */
+/* DENSITY (D75 pass, the director's GO 2026-08-08): the 2px rule carries the boundary on
+   its own, so the air above a turn is 16px, and the head sits 8px off its turn. */
+.turn { border-top: 2px solid var(--border-strong); padding: var(--s4) 0 0; }
+.turn:first-child { border-top: none; padding-top: 0; }
+.turn-head {
+  display: flex; align-items: baseline; gap: var(--s2);
+  margin-bottom: var(--s2);
+  color: var(--text-tertiary);
+}
+/* LEGIBILITY (D45): the turn number is structure, so it reads as structure —
+   semibold and at --text-secondary rather than a tertiary whisper. */
+.turn-head .turn-n { letter-spacing: 0.08em; font-weight: var(--fw-semibold); color: var(--text-secondary); font-size: var(--fs-label); }
+/* The turn's closing line: outcome, then the cost, then the counts — one row.
+   DENSITY (D75 pass): the tokens fold shares the verdict/cost row instead of
+   forcing a second one (the shared .fold rule is width:100%), and the hairline
+   shows only where it means something — the failed/cancelled red rule below.
+   An ordinary completed turn is one line with no rule; the verdict's colour
+   already says the state. */
+.turn-foot {
+  display: flex; align-items: baseline; gap: var(--s3); flex-wrap: wrap;
+  margin: var(--s3) 0 var(--s4);
+}
+.turn-foot .fold { width: auto; }
+.turn[data-outcome="failed"] > .turn-foot,
+.turn[data-outcome="cancelled"] > .turn-foot {
+  padding-top: var(--s2);
+  border-top: var(--hairline) solid var(--state-failed);
+}
+.turn-verdict { flex: none; }
+.turn[data-outcome="ok"] .turn-verdict { color: var(--state-complete); }
+.turn[data-outcome="failed"] .turn-verdict { color: var(--state-failed); }
+.turn[data-outcome="cancelled"] .turn-verdict { color: var(--state-cancelled); }
+.turn[data-outcome="running"] .turn-verdict { color: var(--state-thinking); }
+
+/* A stream block. The left border is the speaker. LEGIBILITY (D45): 3px, so the
+   speaker mark carries at arm's length; still a border and a caption, never a
+   chat bubble — radius stays 0. DENSITY (D75 pass): blocks sit 12px apart. */
+.blk {
+  border-left: 3px solid var(--border-muted);
+  padding: 0 0 0 var(--s3);
+  margin-bottom: var(--s3);
+}
+.blk-head {
+  display: flex; align-items: baseline; gap: var(--s2);
+  margin-bottom: var(--s2);
+  color: var(--text-tertiary);
+}
+/* LEGIBILITY (D45): speaker labels are semibold so YOU and AGENT read as labels.
+   D48: at the 13px label step, above metadata — the eye navigates by these. */
+.blk-who { letter-spacing: 0.08em; flex: none; font-weight: var(--fw-semibold); font-size: var(--fs-label); }
+.blk-note { min-width: 0; }
+
+/* Agent and user text. `pre-wrap` because the agent's own line breaks are
+   information — a numbered list rendered as one paragraph is a lie about what
+   it said. `break-word` because it emits paths and URLs longer than 720px.
+
+   THIS IS TEXT, NOT MARKDOWN (D32). No renderer, so no sanitiser to get wrong.
+   The one structural affordance is a fenced code block, which is done by
+   splitting the string and putting the pieces in text nodes — no parser, no
+   markup, nothing that can execute. */
+.msg { white-space: pre-wrap; overflow-wrap: break-word; }
+/* D48 + the director's follow-up (2026-08-01): user and agent told apart at a glance by
+   putting the accent edge on OPPOSITE sides — his suggestion — and the AGENT made
+   the prominent block, because what the agent says is what the reader most wants
+   highlighted. So:
+     · AGENT — the filled, highlighted block: a subtle surface fill and the steel
+       accent edge on the LEFT.
+     · USER  — the quieter, open block: no fill, a grey edge on the RIGHT.
+     · SYSTEM/activity — marked on the TOP (below), a third axis entirely.
+   Text stays full-width and left-aligned in all of them: no chat bubbles, no
+   avatars, no rounded cards, no shadows, no gradients, and NO opposing message
+   alignment. Radius 0. */
+.blk[data-who="agent"] {
+  border-left: 3px solid var(--accent);
+  background: var(--bg-surface);
+  padding: var(--s3) var(--s4);
+  margin-bottom: var(--s6);
+}
+.blk[data-who="agent"] .blk-who { color: var(--accent); }
+.blk[data-who="user"] {
+  border-left: none;
+  border-right: 3px solid var(--border-focus);
+  background: none;
+  padding: 0 var(--s4) 0 0;
+  margin-bottom: var(--s6);
+}
+.blk[data-who="user"] .blk-who { color: var(--text-secondary); }
+
+/* SYSTEM / machinery blocks are marked on the TOP, not a side — a short field
+   the width of a side edge, sitting on a top line — so they read as a distinct
+   third thing beside the agent (left edge) and the user (right edge), never
+   mistaken for either. The director's ask, 2026-08-01: THINKING shared the left edge
+   with the agent and ran together with it, so every non-user, non-agent block —
+   notices, thinking, the Activity fold — moves to this axis. */
+.blk[data-who="notice"], .blk[data-who="thinking"], .activity {
+  border-left: none;
+  border-top: var(--hairline) solid var(--border-default);
+  padding: var(--s2) 0 0 var(--s3);
+  margin-bottom: var(--s3);
+  position: relative;
+}
+.blk[data-who="notice"]::before, .blk[data-who="thinking"]::before, .activity::before {
+  content: "";
+  position: absolute;
+  top: -1px; left: 0;
+  width: 28px; height: 3px;
+  background: var(--text-tertiary);
+}
+
+/* A fenced code block inside agent text. */
+pre.code {
+  margin: var(--s2) 0;
+  padding: var(--s2) var(--s3);
+  background: var(--bg-void);
+  border: var(--hairline) solid var(--border-muted);
+  border-left: 2px solid var(--border-default);
+  font-family: var(--font-mono); font-size: var(--fs-mono); line-height: var(--lh-mono);
+  color: var(--text-primary);
+  overflow-x: auto;
+  white-space: pre;
+}
+pre.code > .code-lang {
+  display: block; margin-bottom: var(--s1);
+  color: var(--text-tertiary);
+  font-size: var(--fs-mono-sm);
+}
+
+/* Thinking. Collapsed by default and folded behind its own chunk count: one
+   command produced 39 chunks in WP4's run and 57 in an earlier one, and raw
+   they bury the answer. D34. */
+/* The frame (top line + marker) comes from the shared system rule above; this
+   keeps thinking's own quieter opacity and its label colour for identity. */
+.blk[data-who="thinking"] { opacity: 0.85; }
+.blk[data-who="thinking"] .blk-who { color: var(--state-thinking); }
+.fold {
+  display: flex; align-items: baseline; gap: var(--s2);
+  width: 100%; text-align: left;
+  background: none; border: none; padding: 0;
+  color: var(--text-secondary);
+}
+.fold:hover { color: var(--text-primary); }
+.fold-caret { color: var(--text-tertiary); width: 8px; flex: none; }
+.fold-body { margin-top: var(--s2); }
+.fold-body[hidden] { display: none; }
+.think-text {
+  white-space: pre-wrap; overflow-wrap: break-word;
+  color: var(--text-secondary);
+  max-height: 320px; overflow-y: auto;
+  border-left: var(--hairline) solid var(--border-muted);
+  padding-left: var(--s3);
+}
+
+/* Tool-call card. Built entirely from _meta["x.ai/tool"] — `label` is the
+   heading, `kind` is the type line, `readOnly` drives the treatment. No tool
+   name is matched against anything in this file. */
+.tool-card {
+  border: var(--hairline) solid var(--border-default);
+  border-left: 2px solid var(--state-tool);
+  background: var(--bg-surface);
+  padding: var(--s2) var(--s3);
+  margin-bottom: var(--s2);
+}
+.tool-card[data-status="failed"] { border-left-color: var(--state-failed); }
+.tool-card[data-status="completed"] { border-left-color: var(--state-complete); }
+.tool-card[data-writes="true"] { border-left-color: var(--state-editing); }
+.tool-row { display: flex; align-items: baseline; gap: var(--s2); flex-wrap: wrap; }
+.tool-label { flex: none; }
+.tool-target {
+  min-width: 0; flex: 1 1 200px;
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm);
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.tool-status { flex: none; }
+.tool-status[data-s="running"] { color: var(--state-tool); }
+.tool-status[data-s="completed"] { color: var(--state-complete); }
+.tool-status[data-s="failed"] { color: var(--state-failed); }
+.tool-status[data-s="unreported"] { color: var(--text-tertiary); }
+
+/* read_only. Three states, and the third one is the point: true, false, and
+   "the agent did not say". Rendering a missing flag as "writes" cries wolf;
+   rendering it as read-only lies in the dangerous direction. So it says which. */
+.ro {
+  flex: none; padding: 0 var(--s1);
+  border: var(--hairline) solid;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+.ro[data-ro="true"]    { color: var(--state-ready);   border-color: var(--state-ready); }
+/* LEGIBILITY (D45): "Not read-only" is not "the machine is waiting for you" —
+   it is the agent editing, so the steel-blue editing colour, matching the card's
+   own writes border. Gold is reserved for waiting. The three read_only states
+   (true / false / unknown) are otherwise unchanged. */
+.ro[data-ro="false"]   { color: var(--state-editing); border-color: var(--state-editing); }
+.ro[data-ro="unknown"] { color: var(--text-tertiary); border-color: var(--border-strong); }
+
+/* File-edit summary: one row per path the agent reported touching. */
+.files { margin-top: var(--s2); display: flex; flex-direction: column; gap: 2px; }
+.file-row { display: flex; align-items: baseline; gap: var(--s2); }
+.file-path {
+  min-width: 0;
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm);
+  overflow-wrap: anywhere;
+}
+.file-mark { flex: none; color: var(--state-editing); }
+
+/* The unhandled-event card. An event kind this build has not handled before must
+   look unhandled rather than invisible; the first one to arrive is how a release
+   breaks the pane with no error anywhere. D35.
+   LEGIBILITY (D45): a routine recognised-but-unmodelled kind is neutral and calm
+   (steel-grey), NOT gold — gold is only "the machine is waiting for you". A real
+   WIRE PROBLEM (a build-versus-wire failure) goes red, so failures out-shout
+   noise. The treatment is derived only from the existing b.loud flag. */
+/* An unhandled event is machinery too, so it joins the system TOP axis (the director,
+   2026-08-01) — a dashed top line keeps its own "unhandled" identity, and it
+   goes red as a WIRE PROBLEM. Structure (one row + fold, D35/D38) is unchanged. */
+.unhandled {
+  border-top: var(--hairline) dashed var(--border-strong);
+  padding: var(--s2) 0 0 var(--s3);
+  margin-bottom: var(--s3);
+  position: relative;
+}
+.unhandled::before {
+  content: ""; position: absolute; top: -1px; left: 0;
+  width: 28px; height: 3px; background: var(--text-tertiary);
+}
+.unhandled[data-loud="true"] { border-top-color: var(--state-failed); }
+.unhandled[data-loud="true"]::before { background: var(--state-failed); }
+.unhandled .u-flag {
+  flex: none;
+  padding: 0 var(--s1);
+  border: var(--hairline) solid var(--border-strong);
+  color: var(--text-secondary);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.unhandled[data-loud="true"] .u-flag { border-color: var(--state-failed); color: var(--state-failed); }
+.unhandled > .fold-body { padding-bottom: var(--s2); }
+pre.raw {
+  margin: var(--s2) 0 0;
+  padding: var(--s2);
+  background: var(--bg-void);
+  border: var(--hairline) solid var(--border-muted);
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm); line-height: 1.35;
+  color: var(--text-secondary);
+  max-height: 260px; overflow: auto;
+  white-space: pre;
+}
+
+/* A replayed block. `session/load` re-streams the whole conversation, so this
+   is history and says so — it is not a second helping of live activity. */
+.blk[data-replay="true"] .blk-note::after { content: " · from history"; }
+.turn[data-replay="true"] .turn-n { color: var(--text-tertiary); }
+
+/* LEGIBILITY (D45): recovery and truncation notices are product promises, not
+   metadata — body size and --text-secondary, never a 12px tertiary whisper. This
+   overrides any t-caption class on the element by cascade order (defined later). */
+.stream-note {
+  color: var(--text-secondary);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  padding: var(--s2) 0;
+}
+
+/* ── THE ACTIVITY FOLD (D47) ─────────────────────────────────────────────
+   Routine recognised activity — the session-titled / mode / model / subagent /
+   compaction notices, answered interactions, and the setup aside — collapses
+   into one labelled, expandable row instead of a stack of little blocks. The director's
+   dogfood asked for exactly this: the conversation must dominate and the
+   machinery recede ("less text", "less visible machinery", "OpenCode is much
+   less busy").
+
+   THE TRUTH IS RETAINED, NEVER DROPPED — every grouped item is inside the fold.
+   And this is ONLY for routine recognised activity: STOP, failures, truncation,
+   recovery, waiting interactions and any unknown-wire problem never come here;
+   they stay visible in the stream, and D35 keeps its own compact row and payload
+   fold. The classification lives in app.js (ACTIVITY_NOTICES); this only styles
+   the group. */
+/* The frame (border-top + the top-marker field + padding + margin) is set by the
+   shared `.blk[data-who="notice"], .activity` rule above, so system messages and
+   the Activity fold are marked on the same axis. Only fold-specific styling lives
+   here now. */
+.activity > .fold { color: var(--text-tertiary); }
+/* D84: the two known background kinds (queue.changed, turn.prompt_complete)
+   compress into one calm line — dim, no flag, no frame of its own beyond the
+   shared fold. The first user read the per-turn UNHANDLED EVENT flag as an
+   error; the line says what it is ("background events") and keeps every
+   member and payload inside the fold (D35 untouched). */
+.quietbg > .fold { color: var(--text-tertiary); }
+.quietbg-label { flex: none; color: var(--text-tertiary); }
+.quietbg > .fold-body { padding-top: var(--s2); }
+.quietbg-item { padding-left: var(--s4); }
+.act-label {
+  letter-spacing: 0.08em; flex: none;
+  font-weight: var(--fw-semibold); font-size: var(--fs-label);
+  color: var(--text-tertiary);
+}
+.activity > .fold-body { padding-top: var(--s2); }
+.act-item { display: flex; align-items: baseline; gap: var(--s2); padding: 2px 0; color: var(--text-secondary); }
+.act-k {
+  flex: none; min-width: 88px;
+  letter-spacing: 0.06em; font-weight: var(--fw-semibold);
+  color: var(--text-tertiary);
+}
+.act-v { min-width: 0; overflow-wrap: anywhere; }
+
+/* Banner: the "agent process gone" surface. Full-width interrupt above the
+   canvas, 2px left border in the failed colour, no bounce. Spec §1, §5. */
+.banner {
+  flex: none;
+  border-bottom: var(--hairline) solid var(--state-gone);
+  border-left: 2px solid var(--state-gone);
+  background: var(--bg-elevated);
+  padding: var(--s3) var(--s4);
+  display: none;
+}
+/* No entry animation, deliberately. Spec §5: "Failed / process gone: 2px
+   left border in failed color, NO BOUNCE." The 160ms opacity-and-rise the
+   spec does specify belongs to the approval card, below. */
+.banner[data-show="true"] { display: block; }
+.banner-row { display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap; }
+
+/* Approval card appearance: 160ms opacity + 4px upward translate. Spec §5. */
+@keyframes rise { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+
+/* ── 9. COMPOSER ───────────────────────────────────────────────────── */
+
+/* WP14: the notice strip — the visible home for note()'s sentences, one
+   dismissible line above the composer. Neutral tokens only: gold stays
+   licensed to its three waiting-for-you surfaces (D45/D53). Failures use the
+   failed/red voice — the same red the aw-line error rows and the failure
+   banners use, on the text and the left edge (spec §5's failure edge). */
+.notice-strip {
+  display: flex; align-items: baseline; gap: var(--s2);
+  padding: var(--s1) var(--s4);
+  background: var(--bg-surface);
+  border-top: var(--hairline) solid var(--border-muted);
+  border-left: 3px solid var(--border-strong);
+}
+.notice-strip[data-kind="error"] { border-left-color: var(--state-failed); }
+.notice-strip[data-kind="error"] .notice-text { color: var(--state-failed); }
+.notice-text { flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.notice-dismiss {
+  flex: none; align-self: center;
+  background: none; border: none; padding: 0 var(--s1);
+  color: var(--text-tertiary); font-size: var(--fs-body); line-height: 1;
+}
+.notice-dismiss:hover { color: var(--text-primary); }
+
+.composer {
+  flex: none; min-height: var(--composer-min-h);
+  border-top: var(--hairline) solid var(--border-default);
+  background: var(--bg-base);
+  padding: var(--s3) var(--s4);
+}
+/* `position: relative` is the launcher's anchor: the overlay opens upward from
+   this element's top edge and inherits its 720px measure, so it can never be
+   wider than the reading column or escape the composer's own column (WP7). */
+.composer-inner { max-width: var(--read-max); margin: 0 auto; position: relative; }
+.composer-row { display: flex; align-items: flex-end; gap: var(--s2); }
+textarea.input {
+  flex: 1; min-width: 0; resize: none;
+  background: var(--bg-input);
+  /* LEGIBILITY (D45): the composer is the primary input — a 2px strong border,
+     and steel --accent on focus. */
+  border: 2px solid var(--border-strong);
+  color: var(--text-primary);
+  padding: var(--s2) var(--s3);
+  font: var(--fw-normal) var(--fs-body)/var(--lh-body) var(--font-ui);
+}
+textarea.input:focus { border-color: var(--accent); outline: none; }
+textarea.input:disabled { color: var(--text-disabled); background: var(--bg-input); border-color: var(--border-default); }
+textarea.input::placeholder { color: var(--text-tertiary); }
+input.input {
+  background: var(--bg-input);
+  border: var(--hairline) solid var(--border-strong);
+  color: var(--text-primary);
+}
+input.input:focus { border-color: var(--accent); outline: none; }
+input.input::placeholder { color: var(--text-tertiary); }
+.composer-meta { display: flex; align-items: center; gap: var(--s3); margin-top: var(--s2); flex-wrap: wrap; }
+
+/* ── 9b. WP7 COMPOSER CONTROLS: plan state, effort, launcher ─────────
+   Same language as everything else: near-black, 1px borders, radius 0, no
+   shadow, steel for action and focus. Nothing here is gold — gold means the
+   machine is waiting for you (D45), and none of these ever is. */
+
+/* The plan toggle's state word. It sits beside the button rather than inside
+   it so the button's own face never changes width as the state does. */
+.plan-state { flex: none; color: var(--text-secondary); }
+
+.composer-effort { flex: none; display: inline-flex; align-items: center; gap: var(--s2); }
+.effort-label { flex: none; color: var(--text-secondary); }
+.model-readout { flex: 0 1 160px; min-width: 0; }
+/* A native select on purpose: the keyboard contract, the screen-reader
+   semantics and the narrow-screen behaviour arrive for free, and a custom
+   listbox here would be a second launcher to maintain for no visible gain.
+   The max-width is what keeps a long runtime label from wrapping the meta row
+   at 1100×500 — it truncates instead, and the note yields before it does. */
+.composer-select {
+  max-width: 150px; height: 24px;
+  background: var(--bg-input);
+  border: var(--hairline) solid var(--border-default);
+  color: var(--text-primary);
+  font-size: var(--fs-caption);
+  padding: 0 var(--s1);
+}
+.composer-select:focus { border-color: var(--accent); outline: none; }
+.composer-select:disabled { color: var(--text-disabled); }
+
+/* The launcher. An upward transient overlay anchored to the composer's top
+   edge — no backdrop, no dimming, no focus move. 40vh of internal scroll so a
+   ninety-command list never pushes the composer or the canvas around. */
+.launcher-host[hidden] { display: none; }
+.launcher {
+  position: absolute; left: 0; right: 0; bottom: 100%;
+  /* Matches the composer's own top padding, so the panel's lower edge lands on
+     the composer's top border rather than 4px inside it. */
+  margin-bottom: var(--s3);
+  z-index: 3;
+  display: flex; flex-direction: column;
+  max-height: 40vh;
+  background: var(--bg-base);
+  border: var(--hairline) solid var(--border-strong);
+}
+.launcher-list { flex: 1; min-height: 0; overflow-y: auto; }
+.launcher-row {
+  display: flex; flex-direction: column; gap: 2px;
+  width: 100%; text-align: left;
+  padding: var(--s2) var(--s3);
+  background: none; border: none;
+  border-left: 2px solid transparent;
+  color: var(--text-primary);
+}
+.launcher-row:hover { background: var(--bg-surface); }
+/* The selected row reuses the rail's "chosen one" language — elevated
+   background, 2px steel left edge — plus a text marker, so the active row is
+   never distinguished by colour alone. */
+.launcher-row[aria-selected="true"] {
+  background: var(--bg-elevated);
+  border-left-color: var(--accent);
+}
+.lr-head { display: flex; align-items: baseline; gap: var(--s2); min-width: 0; }
+.lr-mark { flex: none; width: 8px; color: var(--accent); }
+.lr-name {
+  flex: 0 1 auto; min-width: 0;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm);
+}
+.lr-hint {
+  flex: 1; min-width: 0;
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm);
+  color: var(--text-tertiary);
+}
+/* One visual line. The whole description stays reachable in the row's title
+   and accessible name — truncation is visual only. */
+.lr-desc {
+  color: var(--text-secondary); font-size: var(--fs-caption);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.launcher-foot {
+  flex: none;
+  padding: var(--s2) var(--s3);
+  border-top: var(--hairline) solid var(--border-muted);
+  color: var(--text-tertiary); font-size: var(--fs-caption);
+}
+.launcher-msg { padding: var(--s3); color: var(--text-secondary); }
+/* Touch targets: taller rows only where the pointer is coarse. */
+@media (pointer: coarse) {
+  .launcher-row { min-height: 44px; justify-content: center; }
+}
+
+/* Announced, not shown. The composer's polite live region. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; border: 0;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap;
+}
+
+/* ── 10. BUTTONS (spec §5 component primitives) ────────────────────── */
+
+.btn {
+  height: 32px; padding: 0 var(--s3);
+  display: inline-flex; align-items: center; gap: var(--s2);
+  background: var(--bg-elevated);
+  border: var(--hairline) solid var(--border-strong);
+  color: var(--text-primary);
+}
+.btn:hover:not(:disabled) { border-color: var(--border-focus); color: var(--accent); }
+.btn[data-variant="ghost"] { background: transparent; border-color: var(--border-default); }
+/* D83: the primary variant — the ONE visually recommended action on a card
+   (today: the permission card's per-action approval). Accent border and ink,
+   the data-toggle="on" language; hover lifts to accent-hover. Placed before
+   the :disabled rule on purpose: equal specificity, so source order lets the
+   D45 disabled treatment (legible disabled ink, default frame) win. */
+.btn[data-variant="primary"] { border-color: var(--accent); color: var(--accent); }
+.btn[data-variant="primary"]:hover:not(:disabled) { border-color: var(--accent-hover); color: var(--accent-hover); }
+/* LEGIBILITY (D45): a disabled control's label must still be readable — the ink
+   is --text-disabled (3.84 on base) and the frame --border-default. The disabled
+   affordance is the cursor and the tone, not illegibility. */
+.btn:disabled { color: var(--text-disabled); border-color: var(--border-default); background: transparent; }
+.btn[data-toggle="on"] { border-color: var(--accent); color: var(--accent); }
+.btn-sm { height: 24px; padding: 0 var(--s2); font-size: var(--fs-caption); }
+
+/* ── 11. RIGHT DRAWER ──────────────────────────────────────────────── */
+
+.drawer {
+  width: 0;
+  background: var(--bg-surface);
+  border-left: 0 solid var(--border-default);
+  display: flex; flex-direction: column;
+  min-width: 0; overflow: hidden;
+  transition: width var(--t-state) ease-out;
+}
+.app[data-drawer="open"] .drawer {
+  width: var(--drawer-w);
+  border-left-width: var(--hairline);
+}
+/* WP14: a closed drawer is 0-wide with overflow hidden — but every button
+   inside stayed in the tab order, invisibly. The collapsed rail's own fix,
+   applied here: the contents are not displayed at all, so nothing inside a
+   closed drawer can take focus. */
+.app[data-drawer="closed"] .drawer-tabs,
+.app[data-drawer="closed"] .drawer-body { display: none; }
+.drawer-tabs {
+  height: var(--strip-h); flex: none;
+  display: flex; align-items: stretch;
+  border-bottom: var(--hairline) solid var(--border-muted);
+}
+.tab {
+  flex: 1; min-width: 0;
+  background: none; border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-tertiary);
+  font-size: var(--fs-caption);
+  padding: 0 var(--s1);
+}
+.tab:hover { color: var(--text-secondary); }
+.tab[aria-selected="true"] { color: var(--text-primary); border-bottom-color: var(--accent); }
+/* The close button, which is not a tab and does not stretch like one. */
+.tab-close { flex: none; width: 32px; }
+.drawer-body { flex: 1; overflow-y: auto; padding: var(--s4); }
+.drawer-body .panel:last-child { margin-bottom: 0; }
+
+/* The agent-wide narration rail. Its own surface, permanently labelled,
+   never inside a session view. WP3b §4. */
+.aw-line {
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm); line-height: 1.35;
+  padding: 1px 0;
+  color: var(--text-secondary);
+  word-break: break-word;
+}
+.aw-line[data-kind="error"], .aw-line[data-kind="stderr"] { color: var(--state-failed); }
+.aw-tag { color: var(--accent-muted); }
+
+table.grid { border-collapse: collapse; width: 100%; }
+table.grid td, table.grid th {
+  border-bottom: var(--hairline) solid var(--border-muted);
+  padding: var(--s1) var(--s2) var(--s1) 0;
+  text-align: left; font-weight: var(--fw-normal);
+  vertical-align: top;
+  /* A session id is 36 characters of hex in a 320px drawer. It wraps; it
+     does not push the table out from under the scrollbar. */
+  overflow-wrap: anywhere;
+}
+table.grid th { color: var(--text-tertiary); font-size: var(--fs-caption); }
+/* Key/value tables only: a fixed 38% label column, so a long value wraps
+   instead of stretching the table past the drawer's edge. */
+table.grid.kv { table-layout: fixed; }
+table.grid.kv th { width: 38%; }
+.num { font-family: var(--font-mono); font-size: var(--fs-mono-sm); text-align: right; }
+
+/* Verdict flags for the §2 coverage table. `nowrap` because the cells above
+   set overflow-wrap: anywhere for long session ids, and a four-letter flag
+   inherits it and stacks one letter per line. */
+.flag { display: inline-block; padding: 0 var(--s1); border: var(--hairline) solid; white-space: nowrap; }
+.flag[data-v="live"] { color: var(--state-complete); border-color: var(--state-complete); }
+.flag[data-v="cut"]  { color: var(--text-tertiary); border-color: var(--border-strong); }
+
+/* ── 12. THE CHANGES PANE (WP11) ─────────────────────────────────────
+   The drawer's changed-file list: real +N/−M, per-hunk before/after, and
+   agent/you attribution from the live reading. Same language as the rest of
+   the drawer — near-black, 1px borders, radius 0, no shadow. The pre blocks
+   follow pre.code's conventions (horizontal scroll rather than wrapped diff
+   text), tinted by the --diff-* tokens. */
+.chg-file { border: var(--hairline) solid var(--border-muted); margin-top: var(--s2); }
+.chg-file-head {
+  display: flex; align-items: center; gap: var(--s2); width: 100%;
+  background: none; border: none; padding: var(--s1) var(--s2);
+  color: var(--text-primary); text-align: left;
+  /* WP15 walk fix (pre-existing WP11 latent defect, surfaced in the director's walk):
+     the head is a 236px strip. `wrap` moves whatever does not fit to its own
+     line. Round 1 added wrap ALONE and was insufficient (the director's
+     re-check, 2026-08-11): with the path at `flex: 1` (basis 0) the path never overflows
+     a line, so the wrap fired only when the OTHER items happened to exceed the
+     head width — rows whose stat+attribution fit by a few pixels still left
+     the path a sliver and letter-per-line. The basis on .chg-path below is
+     what makes the wrap fire for the SIBLINGS. */
+  flex-wrap: wrap;
+}
+.chg-file-head:hover { background: var(--bg-elevated); }
+/* `anywhere` shrinks the flex item's min-content to one character and the
+   path wrapped a letter per line at the narrowest drawer width (delta
+   finding 4, visible in evidence wp11/18). `break-word` fills each line and
+   breaks only when a word would overflow. */
+/* WP15 walk fix round 2: a REAL basis. With basis 0 the path can be starved
+   to any width down to 0 by inflexible siblings (measured live round 1:
+   pathW 0, one character per line, 63/63 files). With `1 1 10rem` the path's
+   hypothetical size is 160px, so a line that cannot pay for path + siblings
+   wraps the SIBLINGS to the next line instead; the only item guaranteed to
+   share the path's line is the ~14px caret. Swept live 2026-08-11 over
+   container widths 200–280px (4px steps) × attribution {agent / not
+   attributed / absent} × stat {absent / small / wide}: path ≥ 100px in every
+   combination, letter-per-line in none (docs/evidence/wp15/layout/). */
+.chg-path { flex: 1 1 10rem; min-width: 0; overflow-wrap: break-word; }
+.chg-stat { flex: none; display: inline-flex; gap: var(--s2); }
+.chg-add { color: var(--diff-add); }
+.chg-del { color: var(--diff-del); }
+.chg-who { flex: none; color: var(--text-tertiary); }
+.chg-file-body { border-top: var(--hairline) solid var(--border-muted); padding: var(--s2); }
+.chg-hunk { margin-bottom: var(--s3); }
+.chg-pre {
+  margin: var(--s1) 0 0; padding: var(--s1) var(--s2);
+  background: var(--bg-void);
+  border: var(--hairline) solid var(--border-muted);
+  border-left: 2px solid var(--border-default);
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm); line-height: var(--lh-mono);
+  color: var(--text-primary);
+  overflow-x: auto; white-space: pre;
+}
+.chg-old { border-left-color: var(--diff-del); }
+.chg-new { border-left-color: var(--diff-add); }
+.chg-hunk > .btn { margin-top: var(--s1); }
+.chg-confirm { display: flex; gap: var(--s2); margin-top: var(--s1); }
+.chg-file-body > .btn { margin-top: var(--s2); }
+
+/* ── 13. REFLOW ────────────────────────────────────────────────────── */
+/*
+   What holds at every width: the 40px strip, the 240px rail (until it is
+   forced to collapse), the 320px drawer, the 72px composer floor, and the
+   720px reading measure.
+
+   What reflows: the canvas column, and only it. Two breakpoints, both of
+   which protect the reading measure rather than the chrome:
+
+     ≤1180px  the drawer stops being a column and becomes an overlay, so
+              opening it no longer squeezes the canvas below 720px.
+     ≤880px   the rail auto-collapses to 48px.
+*/
+@media (max-width: 1180px) {
+  /* Out of flow, so its grid column collapses to 0 and the canvas keeps the
+     width it had. The panel covers the canvas instead of squeezing it. */
+  .app[data-drawer="open"] .drawer {
+    position: fixed; top: 0; right: 0; bottom: 0; width: var(--drawer-w);
+    z-index: 2;
+  }
+}
+@media (max-width: 880px) {
+  .masthead { height: 44px; }
+  .rail, .app[data-rail="expanded"] .rail { width: var(--rail-w-collapsed); }
+  .rail-title, .group-head, .s-row-name, .s-row-meta, .s-row-held, .s-row-wt, #foldAll,
+  .rail-foot .btn .wide, .rail-foot .caption-note { display: none; }
+  .s-row { justify-content: center; padding: 0; }
+  .s-row-initial, .rail-foot .btn .narrow { display: block; }
+  .rail-foot .btn { justify-content: center; padding: 0; }
+}
+@media (max-width: 600px) {
+  .masthead { gap: var(--s2); padding: 0 var(--s2); }
+  .mh-identity { gap: var(--s2); }
+  .mh-logo { width: 30px; height: 30px; }
+  .mh-house, .mh-site-full { display: none; }
+  .mh-site-short { display: inline; }
+  .mh-product { font-size: var(--fs-caption); letter-spacing: 0.03em; }
+  /* Routine keyboard help yields first. Failure/read-back text is the only
+     visible explanation for some outcomes, so it remains as one truncated line. */
+  #composerNote:not([data-important="true"]) { display: none; }
+  #composerNote[data-important="true"] { flex-basis: 100%; max-width: 100%; }
+  .composer-select { max-width: 120px; }
+  /* A taller list on a short phone window would cover the conversation
+     entirely; half the viewport is the ceiling here too. */
+  .launcher { max-height: 45vh; }
+}
+
+/* ── WP9 narrow strips (D74's last piece) ─────────────────────────────────
+   The strip's fixed right cluster (auto-approve pill + meter + Details) is
+   the sole measured cause of the document overflow at small widths: 207px at
+   600px, and up to 111px across the 881–996px band where the rail has just
+   expanded to 240px (both measured live, 2026-08-08; the band fix is tier 1,
+   the small-phone fix is tier 2 — set at 700px because 641–674px overflowed
+   under tier 1 alone, measured). Everything stays reachable and every number
+   stays on the control — only spacing, the caption word, bar pixels, and
+   (at 700px) duplicated pointers yield. */
+@media (max-width: 1000px) {
+  .strip { padding: 0 var(--s2); gap: var(--s2); }
+  .strip-right { gap: var(--s2); }
+  /* The "Context" caption word yields; the bar, the absolute numbers and the
+     threshold marker all stay. */
+  .meter .t-caption { display: none; }
+  .bar { width: 120px; }
+}
+@media (max-width: 700px) {
+  /* Already ellipsized to zero width at this size; hiding it reclaims the
+     flex gap. The session name is on the rail row and in the picker. */
+  .strip-id { display: none; }
+  /* 0.88px per percent of context — the four segments and the threshold
+     hairline still resolve; the proportions are untouched. */
+  .bar { width: 88px; }
+  /* The director's WP9 narrowing (D68 precedent): the scope word "all" stays on the
+     control; the full sentence stays in the tooltip and, when ON, the banner. */
+  .aa-pill .aa-key-wide { display: none; }
+  .aa-pill .aa-key-narrow { display: inline; }
+  /* These three badges point at surfaces that stay reachable — the near-full
+     canvas panel, the Agent-wide drawer panel, the stream notices. At this
+     width the pointers yield; the surfaces do not. "Context filling" is still
+     carried by the state label, the meter's strong border and the panel. */
+  #subagents, #unhandledBadge, #fillingBadge { display: none; }
+  /* Long state words ("Awaiting plan approval") cannot fit at any price; they
+     ellipsize (the director's WP9 call). The full words stay on the tooltip, and the
+     gold dot plus the in-stream card still carry the waiting-for-you signal.
+     110px is the measured cap that keeps the whole strip inside 600px even
+     with the longest label engaged (624→584, evidence 03-geometry.md). */
+  .state { min-width: 0; }
+  .state-label { max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}
+
+/* An aside is not a turn: no number, no cost line, and a quieter frame so it
+   reads as the session's machinery rather than as something that was asked. */
+.turn[data-aside="true"] { opacity: 0.9; }
+.turn[data-aside="true"] > .turn-head .turn-n { color: var(--text-tertiary); }
+
+/* ── 14. THE FOLDER PICKER (WP5.5 / D47) ─────────────────────────────────
+   An in-app, directories-only browser: current absolute location, breadcrumbs,
+   a parent step, directory rows, a filter, and quick access to the folders
+   already in the roster. Same visual language as everything else — near-black,
+   1px borders, radius 0, no shadow, one steel accent for hover/selection. It is
+   a transient tool overlay (approvals are inline, per spec; this is not one of
+   them) dismissed on Cancel, Escape, or a backdrop click. */
+.picker-host[hidden] { display: none; }
+.picker-backdrop {
+  position: fixed; inset: 0; z-index: 10;
+  background: var(--bg-overlay);
+  display: flex; align-items: center; justify-content: center;
+  padding: var(--s4);
+}
+.picker {
+  width: min(640px, 100%); max-height: min(80vh, 720px);
+  display: flex; flex-direction: column;
+  background: var(--bg-base);
+  border: var(--hairline) solid var(--border-strong);
+}
+.picker-head {
+  flex: none; display: flex; align-items: center; gap: var(--s2);
+  padding: var(--s3) var(--s4);
+  border-bottom: var(--hairline) solid var(--border-default);
+}
+.picker-title { flex: 1; min-width: 0; }
+.picker-x {
+  flex: none; width: 28px; height: 28px;
+  background: transparent; border: var(--hairline) solid var(--border-default);
+  color: var(--text-secondary);
+}
+.picker-x:hover { border-color: var(--border-focus); color: var(--accent); }
+.picker-loc {
+  flex: none; display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px;
+  padding: var(--s2) var(--s4);
+  border-bottom: var(--hairline) solid var(--border-muted);
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm);
+}
+.crumb { background: none; border: none; color: var(--accent); padding: 0 2px; }
+.crumb:hover { color: var(--accent-hover); }
+.crumb-sep { color: var(--text-tertiary); }
+.crumb-cur { color: var(--text-secondary); padding: 0 2px; overflow-wrap: anywhere; }
+.picker-filter {
+  flex: none; margin: var(--s3) var(--s4) var(--s2);
+  background: var(--bg-input); border: var(--hairline) solid var(--border-default);
+  color: var(--text-primary); padding: var(--s2) var(--s3);
+}
+.picker-filter:focus { border-color: var(--accent); outline: none; }
+.picker-filter::placeholder { color: var(--text-tertiary); }
+/* The 102px floor keeps three 34px rows visible even at a short viewport, so
+   there is always something to pick. (Below a ~420px-tall window the panel may
+   clip its footer instead — the measured floor is a 500px viewport.) */
+.picker-list { flex: 1; min-height: 102px; overflow-y: auto; padding: 0 var(--s2) var(--s2); }
+/* A row is two affordances on two targets (D49): the wide button selects, the
+   narrow ▸ navigates. The selected row reuses the rail's "chosen one" language —
+   elevated background, 2px steel left edge. Steel, never gold (D45). */
+.picker-row {
+  display: flex; align-items: stretch;
+  width: 100%; height: 34px;
+  border-left: 2px solid transparent;
+}
+.picker-row:hover { background: var(--bg-surface); }
+.picker-row[data-selected="true"] {
+  background: var(--bg-elevated); /* the rail's selected step, exactly */
+  border-left-color: var(--accent);
+}
+.picker-row .pr-select {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: var(--s2); text-align: left;
+  padding: 0 var(--s2);
+  background: none; border: none;
+  color: var(--text-primary);
+}
+.picker-row .pr-icon { flex: none; color: var(--text-tertiary); width: 16px; }
+.picker-row .pr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-row .pr-nav {
+  flex: none; width: 32px;
+  background: none; border: none;
+  color: var(--text-tertiary);
+}
+.picker-row .pr-nav:hover { color: var(--accent); background: var(--bg-elevated); }
+/* Touch targets: taller rows only where the pointer is coarse — desktop
+   density is unchanged. */
+@media (pointer: coarse) {
+  .picker-row { height: 44px; }
+}
+.picker-note { padding: var(--s3) var(--s4); color: var(--text-secondary); }
+/* Places sits ABOVE the list (D49): the pinned workspace-root chip is the
+   one-step way back, so it must exist before the operator can get lost. */
+.picker-quick {
+  flex: none; padding: var(--s2) var(--s4);
+  border-bottom: var(--hairline) solid var(--border-muted);
+}
+.picker-quick-label { color: var(--text-tertiary); }
+/* One line, always: at a short viewport the chips must not wrap and eat the
+   list's room — the list keeps its three-row floor below.
+
+   ACCEPTANCE-WALK FIX (2026-08-02): the horizontal scrollbar is an OVERLAY on
+   this platform, so while it was being dragged it sat on top of the chips it
+   was scrolling — you could not see the choice you were reaching for. The row
+   now reserves a lane for the bar beneath the chips, and the bar itself is
+   thinned and tinted so it reads as a rule rather than a slab. */
+.picker-quick-row {
+  display: flex; flex-wrap: nowrap; overflow-x: auto; gap: var(--s2);
+  margin-top: var(--s1);
+  padding-bottom: var(--s2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+  scroll-behavior: smooth;
+  overscroll-behavior-x: contain;
+}
+.picker-quick-row::-webkit-scrollbar { height: 6px; }
+.picker-quick-row::-webkit-scrollbar-track { background: transparent; }
+.picker-quick-row::-webkit-scrollbar-thumb { background: var(--border-strong); }
+.picker-quick-row::-webkit-scrollbar-thumb:hover { background: var(--border-focus); }
+.picker-quick-row .btn { max-width: 100%; }
+/* The permanent Home anchor leads the row: steel border and ink so the eye
+   finds it first among the recent-folder chips. Steel, not gold (D45). */
+.picker-quick-row .btn[data-pinned="true"] { border-color: var(--accent); color: var(--accent); }
+.picker-quick-row .btn > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.picker-foot {
+  flex: none; display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s3) var(--s4);
+  border-top: var(--hairline) solid var(--border-default);
+}
+.picker-target { flex: 1; min-width: 180px; }
+.picker-target .pt-path {
+  font-family: var(--font-mono); font-size: var(--fs-mono-sm);
+  color: var(--text-primary);
+  /* One line, always: a long path must not grow the footer and move the
+     Start button. The full path lives in the title attribute. */
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* Why Start is unavailable, said beside the button it disables. */
+.picker-foot-error { color: var(--text-secondary); }
+
+/* ── WP6: THE BLOCKING-INTERACTION CARDS ──────────────────────────────────
+   The three moments the agent stops and waits, inline in the stream. The
+   OPEN card's border is the third licensed gold surface (D45: gold means
+   "the machine is waiting for you"), beside the strip dot and the rail's
+   needs-input dot — and it is a class, not a fourth inline style. A sealed
+   or historical card sheds the gold and recedes to an ordinary bordered
+   block. Near-black, zero radius, no shadows, as everywhere (D45). */
+.icard {
+  border: var(--hairline) solid var(--border-strong);
+  background: var(--bg-surface);
+  padding: var(--s4);
+  margin: var(--s3) 0;
+}
+.icard[data-open="true"] { border-color: var(--state-permission); }
+.icard[data-open="true"][data-interrupt="true"] { animation: rise var(--t-state) ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .icard[data-open="true"][data-interrupt="true"] { animation: none; }
+}
+.icard-head { display: flex; align-items: baseline; gap: var(--s2); margin-bottom: var(--s2); }
+.icard-actions {
+  display: flex; flex-wrap: wrap; align-items: flex-start;
+  gap: var(--s3); margin-top: var(--s3);
+}
+.icard-action { display: flex; flex-direction: column; gap: var(--s1); max-width: 280px; }
+.icard-error { color: var(--state-failed); margin-top: var(--s2); }
+.icard-seal { margin-top: var(--s3); }
+.icard-feedback { display: flex; flex-direction: column; gap: var(--s2); margin-top: var(--s3); }
+.icard-textarea { width: 100%; resize: vertical; }
+
+/* The question card's sections and rows. Native radio/checkbox controls,
+   steel accent, no custom widgetry. */
+.q-section { margin-top: var(--s3); }
+.q-row { display: flex; align-items: baseline; gap: var(--s2); padding: var(--s1) 0; cursor: pointer; }
+.q-row input { accent-color: var(--accent); flex: none; }
+.q-opt { display: flex; flex-direction: column; gap: 2px; }
+
+/* D44's constructive grammar, plan surface only. <em> here is the one
+   licensed italic on the page (the legibility pass's "zero italics"
+   invariant is updated to say exactly that). */
+.md { margin-top: var(--s2); }
+.md-p { margin: var(--s2) 0; white-space: pre-wrap; overflow-wrap: break-word; }
+.md-h { font-weight: 600; margin: var(--s3) 0 var(--s1); }
+.md-h1 { font-size: var(--fs-title); }
+.md-h2 { font-size: var(--fs-body); }
+.md-h3 { font-size: var(--fs-body); color: var(--text-secondary); }
+.md-quote {
+  border-left: 2px solid var(--border-strong);
+  padding-left: var(--s3); margin: var(--s2) 0;
+  color: var(--text-secondary); white-space: pre-wrap;
+}
+.md-list { margin: var(--s2) 0 var(--s2) var(--s6); }
+.md-li { margin: 2px 0; }
+.md-code {
+  font-family: var(--font-mono); font-size: 0.92em;
+  background: var(--bg-input); padding: 0 var(--s1);
+}
+/* The page-wide reset sets em/i to font-style: normal (the legibility pass's
+   "zero italics"). D44's grammar includes italic, so the plan renderer's own
+   emphasis is the ONE licensed italic surface and has to opt back in. Without
+   this rule the grammar renders but the emphasis is invisible. */
+.md-i { font-style: italic; }
+
+/* ── THE WORKING INDICATOR (acceptance walk, 2026-08-02) ──────────────────
+   A running turn has to be visibly alive without the operator reading a word.
+   The mark is a rotating needle — a graphometer's alidade sweeps, so the
+   motion is the instrument's own — sized to the caption line it sits on.
+
+   THIS IS A PLACEHOLDER FOR GRANT'S ARTWORK. The element, its 12px box, the
+   rotation and the reduced-motion opt-out are the product; the shape inside
+   is his to supply (an SVG swap here changes nothing else). Steel, never gold:
+   "working" is not "the machine is waiting for you" (D45). */
+.working-mark {
+  flex: none; position: relative;
+  width: 12px; height: 12px;
+  border: var(--hairline) solid var(--border-strong);
+  animation: sweep 2s linear infinite;
+}
+.working-mark::after {
+  content: ""; position: absolute;
+  left: 50%; top: 1px; bottom: 50%; width: var(--hairline);
+  background: var(--accent);
+}
+@keyframes sweep { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  /* Still unmistakably "working", without motion. */
+  .working-mark { animation: none; border-color: var(--accent); }
+}
+.elapsed { flex: none; color: var(--text-secondary); }
+
+/* Option labels come from the agent verbatim (rule 2) and can be a sentence.
+   .btn has a fixed 32px height, so an unwrapped long label would overflow its
+   own border into the neighbouring option — ambiguity on the one surface where
+   a mis-click grants disk access. Let the button grow instead. */
+.icard-action .btn { height: auto; min-height: 32px; padding: var(--s2) var(--s3); text-align: left; white-space: normal; }
+/* D83: sizing for the permission card's primary control (the per-action
+   approval). A 36px floor and a 120px floor so a one-word label ("Yes")
+   still reads as the real button beside the long session-wide one, which now
+   wears the quiet ghost. Semibold from the existing type scale — no new font
+   size. Scoped to the card so the §10 variant stays generic. */
+.icard-action .btn[data-variant="primary"] { min-height: 36px; min-width: 120px; font-weight: var(--fw-semibold); }
+.icard .tool-label { flex: 1 1 auto; min-width: 0; overflow-wrap: break-word; }
+
+/* ══════════════════════════════════════════════════════════════════════════
+   WP13 — session management & portability (rename / archive / auto-approve /
+   delete / export-import). Honours D45: radius 0, no shadows, and GOLD stays
+   reserved for "the machine is waiting for you". Auto-approve-on and the delete
+   action are the opposite of waiting — the agent acting freely, or a permanent
+   loss — so they warn in red (--state-failed), never gold.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+/* ── the session row, now a wrapper: select button + a quiet ⋯ actions button ── */
+.s-row-wrap { display: flex; align-items: stretch; }
+.s-row-wrap > .s-row { flex: 1 1 auto; width: auto; min-width: 0; }
+.s-row-actions {
+  flex: none; min-width: 28px; padding: 0 var(--s2);
+  background: transparent; border: none; color: var(--text-tertiary);
+  opacity: 0;
+}
+.s-row-wrap:hover .s-row-actions,
+.s-row-actions:focus { opacity: 1; }
+.s-row-actions:hover { color: var(--accent); }
+/* Restore, in the archived panel, is a text action and always readable. */
+.archived-panel .s-row-actions { opacity: 1; color: var(--text-secondary); }
+.archived-panel .s-row-actions:hover { color: var(--accent); }
+.app[data-rail="collapsed"] .s-row-actions { display: none; }
+
+/* Running-hot marker: this session is approve-everything (roster truth). Red,
+   because it is a danger signal, not a "waiting" one. */
+/* Two words ("skips asks"), so it holds its own width and never wraps inside a
+   36px row; the session name beside it truncates instead. */
+.s-row-hot {
+  flex: none; white-space: nowrap; color: var(--state-failed);
+  letter-spacing: 0.04em; text-transform: uppercase; font-weight: var(--fw-semibold);
+}
+
+/* The inline action strip under an opened row. */
+.s-actions {
+  display: flex; flex-wrap: wrap; gap: var(--s1);
+  padding: var(--s1) var(--s3) var(--s2) calc(var(--s3) + 20px);
+  background: var(--bg-surface);
+}
+.s-action {
+  background: transparent; border: var(--hairline) solid var(--border-default);
+  color: var(--text-secondary); padding: var(--s1) var(--s2); font-size: var(--fs-caption);
+}
+.s-action:hover { border-color: var(--border-focus); color: var(--accent); }
+.s-action.danger { color: var(--state-failed); border-color: var(--accent-muted); }
+.s-action.danger:hover { border-color: var(--state-failed); color: var(--state-failed); }
+
+/* Inline rename field: seeded with the current title, on the rail's ground. */
+.s-rename { flex-direction: column; align-items: stretch; padding: var(--s1) var(--s3); gap: 2px; }
+.s-rename-input { width: 100%; height: 30px; padding: 0 var(--s2); }
+.s-rename-cap { color: var(--state-failed); }
+
+/* ── the "Archived (N)" reveal at the foot of the rail ── */
+.rail-archived { flex: none; border-top: var(--hairline) solid var(--border-muted); }
+.rail-archived:empty { border-top: none; }
+.archived-head {
+  display: flex; align-items: baseline; gap: var(--s2); width: 100%; text-align: left;
+  padding: var(--s2) var(--s3); background: none; border: none; color: var(--text-secondary);
+}
+.archived-head:hover { color: var(--text-primary); }
+.archived-cap { padding: 0 var(--s3) var(--s2); }
+.archived-panel { max-height: 40vh; overflow-y: auto; }
+.app[data-rail="collapsed"] .rail-archived { display: none; }
+
+/* ── the auto-approve switch, in the strip ── */
+.aa-pill {
+  flex: none; white-space: nowrap; display: inline-flex; align-items: center; gap: var(--s1);
+  height: 24px; padding: 0 var(--s2);
+  background: transparent; border: var(--hairline) solid var(--border-default);
+  color: var(--text-tertiary); letter-spacing: 0.04em;
+}
+.aa-pill:hover { border-color: var(--border-focus); color: var(--text-secondary); }
+.aa-pill .aa-state { font-weight: var(--fw-semibold); }
+.aa-pill[data-on="true"] {
+  border-color: var(--state-failed); color: var(--state-failed);
+}
+.aa-pill[data-on="true"]:hover { color: var(--state-failed); }
+
+/* ── the auto-approve honesty banner (shown only when hot) ── */
+.aa-banner { display: none; }
+.aa-banner[data-show="true"] {
+  display: flex; align-items: center; gap: var(--s3); flex-wrap: wrap;
+  padding: var(--s2) var(--s4);
+  background: var(--bg-surface);
+  border-left: 3px solid var(--state-failed);
+  border-bottom: var(--hairline) solid var(--border-muted);
+}
+.aa-banner .grow { flex: 1 1 auto; min-width: 0; }
+
+/* WP12: the subscription-gate banner reuses the aa-banner layout, but its
+   edge is the waiting-amber — acting on the gate is the operator's (D45) —
+   never the failure red the auto-approve banner wears. */
+.gate-banner[data-show="true"] { border-left-color: var(--state-permission); }
+.gate-banner .t-mono-sm { overflow-wrap: anywhere; }
+
+/* WP12: the shell log's copy affordance — quiet until hovered, one line high. */
+.copy-details {
+  margin-left: var(--s2); padding: 0 var(--s1);
+  background: none; border: var(--hairline) solid var(--border-default);
+  color: var(--text-tertiary); font-size: var(--fs-caption);
+}
+.copy-details:hover { border-color: var(--border-focus); color: var(--accent); }
+
+/* ── modals (delete / export / import / auto-approve confirm) ── */
+.modal-host[hidden] { display: none; }
+.modal-backdrop {
+  position: fixed; inset: 0; z-index: 20;
+  background: var(--bg-overlay);
+}
+.modal {
+  position: fixed; inset: 0; z-index: 21; margin: auto;
+  width: min(560px, calc(100% - 32px)); max-height: min(80vh, 620px); height: max-content;
+  display: flex; flex-direction: column; gap: var(--s3);
+  padding: var(--s4);
+  background: var(--bg-base); border: var(--hairline) solid var(--border-strong);
+  overflow-y: auto;
+}
+.modal-title { flex: none; }
+.modal-body { flex: none; color: var(--text-secondary); }
+.modal-facts {
+  flex: none; display: flex; flex-direction: column; gap: 2px;
+  padding: var(--s3); background: var(--bg-surface);
+  border: var(--hairline) solid var(--border-default); color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.modal-facts .mf-row { overflow-wrap: anywhere; }
+.modal-cap { flex: none; margin-top: calc(-1 * var(--s2)); }
+.modal-foot { flex: none; display: flex; gap: var(--s2); justify-content: flex-end; flex-wrap: wrap; }
+.export-opt { align-self: flex-start; }
+.btn[data-variant="danger"] { border-color: var(--state-failed); color: var(--state-failed); }
+.btn[data-variant="danger"]:hover:not(:disabled) { border-color: var(--state-failed); color: var(--state-failed); background: var(--bg-surface); }
+.hidden-dl { display: none; }

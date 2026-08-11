@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Graphometer — bridge</title>
+<link rel="stylesheet" href="/bridge.css?token=__STUDIO_TOKEN__">
+</head>
+<body>
+
+<h1>Graphometer — bridge view (development only)</h1>
+<div class="mb6">
+  <!-- The token is in this page's own URL and every page needs it (D10), so
+       the link carries the query string across rather than pointing at a
+       bare path that would 403. -->
+  <a id="toshell" href="/">← the application shell</a>
+  <span class="dim">— this page is the raw event view. The shell drives turns and
+  answers permission requests itself now (WP5/WP6); this remains the raw debugging
+  surface, served only in STUDIO_DEV=1 builds (WP14, D46).</span>
+</div>
+<div id="status">connecting…</div>
+
+<div class="box">
+  <div class="k">Sessions this app holds</div>
+  <table id="sessions"><tr><td class="dim">none yet</td></tr></table>
+  <div class="mt6">
+    cwd <input id="newcwd" size="52" placeholder="(blank = the server's default)">
+    <button id="new">session/new</button>
+    <button id="refreshstate">refresh</button>
+  </div>
+</div>
+
+<div class="box">
+  <div class="k">Active session: <span id="active">(none)</span></div>
+  <div class="mt4">
+    <button id="cancel">session/cancel</button>
+    <button id="info">session/info</button>
+    <button id="compact">compact_conversation</button>
+    <button id="cmds">commands/list</button>
+  </div>
+  <div class="mt4">
+    mode <input id="modeid" size="18" value="plan">
+    <button id="setmode">session/set_mode</button>
+    <span class="dim">confirmed: <span id="confirmedmode">—</span></span>
+  </div>
+  <div class="mt4">
+    model <select id="modelid"></select>
+    effort <select id="effort"></select>
+    <button id="setmodel">session/set_model</button>
+    <span class="dim">read back from sessions/list: <span id="readback">—</span></span>
+  </div>
+  <div id="ctx" class="dim mt4">context: (no reading yet)</div>
+</div>
+
+<div id="perms"></div>
+
+<textarea id="prompt" rows="2">create a file called hello.txt containing the word hi</textarea>
+<div><button id="send">Send to the active session</button></div>
+
+<div class="box">
+  <div class="k">Every session on this machine (<span id="rostercount">?</span>) — <span id="rosterours">?</span> held by this app</div>
+  <div><button id="roster">sessions/list</button> <label><input type="checkbox" id="onlyloadable" checked> hide sessions this app already holds</label></div>
+  <div class="pane short" id="rosterpane"></div>
+</div>
+
+<h2>Per-session channels — each is its own EventSource</h2>
+<div class="channels">
+  <div>
+    <div>channel A: <select id="chanA"></select> <button id="openA">open</button> <span id="statA" class="dim">closed</span></div>
+    <div class="pane short" id="paneA"></div>
+  </div>
+  <div>
+    <div>channel B: <select id="chanB"></select> <button id="openB">open</button> <span id="statB" class="dim">closed</span></div>
+    <div class="pane short" id="paneB"></div>
+  </div>
+</div>
+
+<h2>Readable log (unfiltered channel — everything)</h2>
+<div class="pane" id="log"></div>
+
+<h2>Raw wire (every JSON line, both directions)</h2>
+<div class="pane" id="wire"></div>
+
+<script src="/bridge.js?token=__STUDIO_TOKEN__" defer></script>
+</body>
+</html>
