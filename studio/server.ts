@@ -29,6 +29,8 @@ import {
 } from "./reconstruction.ts";
 import {
   completeShutdown,
+  installStreamErrorGuards,
+  SafeOutput,
   shutdownDisposition,
   type ShutdownDisposition,
 } from "./shutdown.ts";
@@ -1479,67 +1481,139 @@ const server = createServer(async (req, res) => {
 });
 
 // ── shutdown ────────────────────────────────────────────────────────────
+//
+// The WSL release-test wedge (windows-wsl-release-test-note.md) made three
+// facts about this section load-bearing:
+//
+//   1. start.sh merges stdout and stderr into ONE pipe whose reader is the
+//      launcher's log-reader. When the reader died first, every shutdown log
+//      line raised EPIPE; unguarded, that became an uncaughtException whose
+//      handler logged to the same dead stream — a loop that starved the event
+//      loop so the ACP cleanup timers never fired, and the process needed
+//      SIGKILL.
+//   2. `if (shuttingDown) return;` swallowed every later signal, so the
+//      operator's second and third Ctrl+C did nothing.
+//   3. There was no outer deadline: a wedged graceful cleanup hung forever.
+//
+// The fixes, in the order they appear below: a SafeOutput that never reports
+// a stream failure on the failed stream and never throws; 'error' guards on
+// both streams so an EPIPE marks the fd dead instead of becoming an
+// exception; an outer watchdog armed before any logging or cleanup await;
+// and a second termination signal that force-kills and exits instead of
+// returning.
+
+const safeOutput = new SafeOutput();
+installStreamErrorGuards(safeOutput);
 
 let shuttingDown = false;
+
+/** Fixed outer deadline for graceful shutdown (field-report fix 3). */
+const SHUTDOWN_WATCHDOG_MS = 10_000;
+
+/** The non-graceful door: killNow, then exit non-zero. Synchronous throughout. */
+function forceKillAndExit(why: string): never {
+  safeOutput.error(
+    `[studio] ${why} — force-killing the retained agent generation and exiting non-zero`,
+  );
+  try {
+    manager.acp.killNow();
+  } catch {
+    /* killNow is itself best-effort; the exit below is not */
+  }
+  process.exit(1);
+}
 
 async function shutdown(reason: string) {
   if (shuttingDown) return;
   shuttingDown = true;
-  console.log(`\n[studio] shutting down (${reason})`);
 
-  let disposition: ShutdownDisposition;
+  /* Field-report fix 3: the outer watchdog is armed BEFORE the first log line
+     and BEFORE the cleanup await, so no failure inside cleanup can disarm it.
+     The timer is deliberately unref'd — it must never be the thing keeping
+     the process alive. An unref'd timer still fires while the event loop
+     turns, and the loop now stays turnable: the EPIPE starvation loop is gone
+     (stream guards + synchronous safe writes above), so the wedge that
+     starved timers in the field report no longer exists.
+
+     What the second-signal path below honestly buys, stated at proven
+     strength: once Node CAN dispatch the signal callback, the escalation
+     performs no asynchronous wait — killNow and exit run synchronously. But
+     signal callbacks are dispatched ON the event loop: a perpetually busy
+     synchronous loop never dispatches them at all (a bounded-busy loop merely
+     delays them), and that case can only be killed externally. The EPIPE loop
+     that caused the real starvation is fixed at the source, not by the signal
+     path. */
+  const watchdog = setTimeout(() => {
+    forceKillAndExit(`graceful shutdown exceeded ${SHUTDOWN_WATCHDOG_MS}ms (${reason})`);
+  }, SHUTDOWN_WATCHDOG_MS);
+  watchdog.unref();
+
   try {
-    const cleanup = await manager.stop();
-    disposition = shutdownDisposition(cleanup);
-  } catch (err) {
-    const pgids = manager.acp.retainedGenerationPgids;
-    const named = pgids.length > 0 ? pgids.join(", ") : "unavailable";
-    disposition = {
-      exitCode: 1,
-      error:
-        `[studio] FATAL: cleanup for original process group ${named} threw during shutdown; ` +
-        `cleanup is unverified and processes may remain. ${(err as Error).stack ?? err}. ` +
-        `Exiting non-zero.`,
-    };
-  }
+    safeOutput.log(`\n[studio] shutting down (${reason})`);
 
-  const after = configMd5();
-  const verdict = after === CONFIG_MD5_AT_START ? "UNCHANGED" : "CHANGED";
-  console.log(`[studio] ~/.grok/config.toml md5 at start: ${CONFIG_MD5_AT_START}`);
-  console.log(`[studio] ~/.grok/config.toml md5 at exit : ${after}  [${verdict}]`);
-  if (verdict !== "UNCHANGED") {
-    console.error("[studio] !! config.toml changed during this run — investigate");
-  }
-
-  for (const c of sseClients) {
+    let disposition: ShutdownDisposition;
     try {
-      c.res.end();
-    } catch {
-      /* going away anyway */
+      const cleanup = await manager.stop();
+      disposition = shutdownDisposition(cleanup);
+    } catch (err) {
+      const pgids = manager.acp.retainedGenerationPgids;
+      const named = pgids.length > 0 ? pgids.join(", ") : "unavailable";
+      disposition = {
+        exitCode: 1,
+        error:
+          `[studio] FATAL: cleanup for original process group ${named} threw during shutdown; ` +
+          `cleanup is unverified and processes may remain. ${(err as Error).stack ?? err}. ` +
+          `Exiting non-zero.`,
+      };
     }
+
+    const after = configMd5();
+    const verdict = after === CONFIG_MD5_AT_START ? "UNCHANGED" : "CHANGED";
+    safeOutput.log(`[studio] ~/.grok/config.toml md5 at start: ${CONFIG_MD5_AT_START}`);
+    safeOutput.log(`[studio] ~/.grok/config.toml md5 at exit : ${after}  [${verdict}]`);
+    if (verdict !== "UNCHANGED") {
+      safeOutput.error("[studio] !! config.toml changed during this run — investigate");
+    }
+
+    for (const c of sseClients) {
+      try {
+        c.res.end();
+      } catch {
+        /* going away anyway */
+      }
+    }
+    server.close();
+    completeShutdown(disposition, {
+      error: (message) => safeOutput.error(message),
+      exit: (code) => process.exit(code),
+    });
+  } finally {
+    clearTimeout(watchdog);
   }
-  server.close();
-  completeShutdown(disposition, {
-    error: (message) => console.error(message),
-    exit: (code) => process.exit(code),
-  });
 }
 
-process.on("SIGINT", () => void shutdown("SIGINT"));
-process.on("SIGTERM", () => void shutdown("SIGTERM"));
+function onTerminationSignal(signal: "SIGINT" | "SIGTERM" | "SIGHUP") {
+  /* Field-report fix 4: a second signal during shutdown is the operator
+     saying "now, not gracefully" — it escalates instead of returning. */
+  if (shuttingDown) forceKillAndExit(`second ${signal} during shutdown`);
+  else void shutdown(signal);
+}
+
+process.on("SIGINT", () => onTerminationSignal("SIGINT"));
+process.on("SIGTERM", () => onTerminationSignal("SIGTERM"));
 // SIGHUP matters specifically because the agent is spawned detached: closing the
 // terminal signals the foreground process group, which the agent is no longer
 // part of. Without this handler it would survive the window closing.
-process.on("SIGHUP", () => void shutdown("SIGHUP"));
+process.on("SIGHUP", () => onTerminationSignal("SIGHUP"));
 // Last resort: if we leave by any other door, do not orphan the child.
 process.on("exit", () => manager.acp.killNow());
 
 process.on("uncaughtException", (err) => {
-  console.error(`[studio] uncaught exception: ${err.stack ?? err}`);
+  safeOutput.error(`[studio] uncaught exception: ${err.stack ?? err}`);
   void shutdown("uncaughtException");
 });
 process.on("unhandledRejection", (err) => {
-  console.error(`[studio] unhandled rejection: ${(err as Error)?.stack ?? err}`);
+  safeOutput.error(`[studio] unhandled rejection: ${(err as Error)?.stack ?? err}`);
 });
 
 // ── go ──────────────────────────────────────────────────────────────────

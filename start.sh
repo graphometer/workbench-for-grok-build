@@ -44,6 +44,12 @@ fi
 echo "Starting Graphometer on http://127.0.0.1:$PORT  …  (press Ctrl+C to stop)"
 echo
 node studio/server.ts 2>&1 | {
+  # Ctrl+C signals the whole foreground process group — including this reader.
+  # If the reader dies first, the server's output loses its sink exactly when
+  # shutdown logging begins (the WSL release-test wedge). Ignore INT/TERM here:
+  # node gets the same signal directly and shuts itself down, and this loop
+  # then ends on its own when node exits and closes the pipe.
+  trap '' INT TERM
   opened=""
   while IFS= read -r line; do
     printf '%s\n' "$line"
