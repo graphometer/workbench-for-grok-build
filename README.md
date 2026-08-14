@@ -89,8 +89,10 @@ out of the product build; start with `STUDIO_DEV=1` to get them.
 ## Status
 
 v1.0. Linux tested end-to-end against Grok Build 1.0.3 (and 1.0.0 before it).
-Windows-via-WSL2 fresh-install verification is in progress. Issues and honest platform
-reports welcome.
+Windows via WSL2 verified as a fresh install on a real Windows 11 machine — including the
+shutdown behavior that the first attempt caught failing, which is why the launch suite now
+reproduces that exact hang against the old code. Issues and honest platform reports
+welcome. macOS reports especially — it remains unclaimed until someone proves it.
 
 ## License
 
