@@ -40,6 +40,9 @@ invented, estimated, or silently dropped.
 
 Behind that: 1,400+ deterministic checks run green, and the project's rule is that every
 capability claim is proven on the wire or in a live browser before it is written down.
+The wire captures and evidence packs those proofs live in (the `docs/evidence/*` paths
+cited in code comments) stay in the private working tree, not this repository — ask and
+we'll share them.
 
 ## What it looks like
 
