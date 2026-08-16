@@ -48,7 +48,7 @@ capability claim is proven on the wire or in a live browser before it is written
   not claimed.
 - **Node.js 22+** (the server runs TypeScript directly — no build step, no dependencies,
   no `package.json`).
-- **The Grok Build CLI**, installed and authenticated (`grok --version` — tested against `1.0.3`). The app drives `grok agent` over stdio; your existing login is used, and
+- **The Grok Build CLI**, installed and authenticated (`grok --version` — tested against `1.0.4`). The app drives `grok agent` over stdio; your existing login is used, and
   your token is never read by this app.
 
 ## Run
@@ -88,7 +88,7 @@ out of the product build; start with `STUDIO_DEV=1` to get them.
 
 ## Status
 
-v1.0. Linux tested end-to-end against Grok Build 1.0.3 (and 1.0.0 before it).
+v1.0. Linux tested end-to-end against Grok Build 1.0.4 (and 1.0.0-1.0.3 before it).
 Windows via WSL2 verified as a fresh install on a real Windows 11 machine — including the
 shutdown behavior that the first attempt caught failing, which is why the launch suite now
 reproduces that exact hang against the old code. Issues and honest platform reports
