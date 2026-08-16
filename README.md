@@ -41,6 +41,18 @@ invented, estimated, or silently dropped.
 Behind that: 1,400+ deterministic checks run green, and the project's rule is that every
 capability claim is proven on the wire or in a live browser before it is written down.
 
+## What it looks like
+
+[**Watch the 3-minute launch film**](https://graphometer.ai/workbench/) — narrated by the
+founder, edited from real screen captures of the running app.
+
+![The Workbench shell: sessions grouped by folder, the conversation, the details drawer](docs/media/shell.png)
+
+| | |
+|---|---|
+| ![A permission card in the agent's own words](docs/media/permission-card.png) | ![Per-change review with undo](docs/media/per-change-undo.png) |
+| ![The context meter popover: segments that genuinely sum](docs/media/context-meter.png) | ![The privacy panel: each setting next to its source](docs/media/privacy-panel.png) |
+
 ## Requirements
 
 - **Linux** (tested) or **Windows via WSL2** — the process-safety machinery (process-group
